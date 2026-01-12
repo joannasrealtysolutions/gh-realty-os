@@ -14,15 +14,6 @@ type Tx = {
   receipt_link: string | null;
   property_id: string | null;
   properties?: { address: string } | null;
-
-  // optional import fields (won’t break if null)
-  source?: string | null;
-  import_hash?: string | null;
-  external_account?: string | null;
-  external_property?: string | null;
-  external_unit?: string | null;
-  external_category?: string | null;
-  external_subcategory?: string | null;
 };
 
 type BaselaneRow = {
@@ -49,35 +40,51 @@ function money2(n: number | null | undefined) {
   return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * More forgiving money parser:
+ * - accepts "$1,234.56", "(1,234.56)", "-1234.56", "1234", "1 234.56"
+ * - strips anything except digits, minus, dot, parentheses
+ */
 function parseMoney(s: any): number | null {
   if (s === null || s === undefined) return null;
-  const raw = String(s).trim();
+  let raw = String(s).trim();
   if (!raw) return null;
 
-  // handle ($1,234.56)
   const isParenNeg = raw.startsWith("(") && raw.endsWith(")");
-  const cleaned = raw
-    .replace(/[,$]/g, "")
-    .replace(/^\(/, "")
-    .replace(/\)$/, "")
-    .replace(/\$/g, "")
-    .trim();
+  raw = raw.replace(/^\(/, "").replace(/\)$/, "");
 
-  const n = Number(cleaned);
+  // remove everything except digits, minus, dot
+  raw = raw.replace(/[^0-9.\-]/g, "");
+
+  if (!raw) return null;
+
+  const n = Number(raw);
   if (!Number.isFinite(n)) return null;
-  return isParenNeg ? -Math.abs(n) : n;
+
+  const val = isParenNeg ? -Math.abs(n) : n;
+  return val;
 }
 
+/**
+ * More forgiving date parser:
+ * - handles "YYYY-MM-DD"
+ * - handles "YYYY-MM-DD HH:MM:SS"
+ * - handles "MM/DD/YYYY"
+ * - fallback Date.parse
+ */
 function parseDateToISO(s: any): string | null {
   if (s === null || s === undefined) return null;
-  const raw = String(s).trim();
-  if (!raw) return null;
+  const raw0 = String(s).trim();
+  if (!raw0) return null;
 
-  // If already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // "YYYY-MM-DD HH:MM:SS" -> take first 10
+  if (/^\d{4}-\d{2}-\d{2}\s/.test(raw0)) return raw0.slice(0, 10);
 
-  // Try MM/DD/YYYY or M/D/YYYY
-  const mdy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw0)) return raw0;
+
+  // MM/DD/YYYY
+  const mdy = raw0.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) {
     const mm = String(mdy[1]).padStart(2, "0");
     const dd = String(mdy[2]).padStart(2, "0");
@@ -85,37 +92,31 @@ function parseDateToISO(s: any): string | null {
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  // Fallback: Date.parse
-  const t = Date.parse(raw);
+  const t = Date.parse(raw0);
   if (Number.isNaN(t)) return null;
   return new Date(t).toISOString().slice(0, 10);
 }
 
 function normalizeType(typeText: any, amount: number): "income" | "expense" {
   const t = String(typeText ?? "").toLowerCase();
+
+  // common Baselane-ish words
   if (t.includes("income") || t.includes("credit") || t.includes("deposit")) return "income";
   if (t.includes("expense") || t.includes("debit") || t.includes("withdraw")) return "expense";
 
-  // fallback: sign
+  // fallback by sign
   return amount >= 0 ? "income" : "expense";
 }
 
-/**
- * Lightweight deterministic hash (DJB2-ish) to dedupe CSV rows.
- * Good enough for “same export won’t reimport twice”.
- */
+/** deterministic hash for dedupe */
 function hash32(input: string): string {
   let h = 5381;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 33) ^ input.charCodeAt(i);
-  }
-  // convert to unsigned 32-bit and hex
+  for (let i = 0; i < input.length; i++) h = (h * 33) ^ input.charCodeAt(i);
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
 /**
- * Basic CSV parser (handles quotes and commas).
- * Returns array of rows with header->value mapping.
+ * CSV parser (quotes + commas) + fixes UTF-8 BOM on first header cell.
  */
 function parseCSV(text: string): Record<string, string>[] {
   const rows: string[][] = [];
@@ -156,7 +157,6 @@ function parseCSV(text: string): Record<string, string>[] {
     }
   }
 
-  // last line
   if (field.length > 0 || cur.length > 0) {
     cur.push(field);
     rows.push(cur);
@@ -164,12 +164,16 @@ function parseCSV(text: string): Record<string, string>[] {
 
   if (rows.length === 0) return [];
 
-  const header = rows[0].map((h) => h.trim());
+  // trim + remove BOM if present on first header cell
+  const header = rows[0].map((h, idx) => {
+    const trimmed = String(h ?? "").trim();
+    return idx === 0 ? trimmed.replace(/^\uFEFF/, "") : trimmed;
+  });
+
   const out: Record<string, string>[] = [];
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
-    // skip empty line
     if (row.every((x) => !String(x ?? "").trim())) continue;
 
     const obj: Record<string, string> = {};
@@ -206,7 +210,14 @@ export default function MoneyPage() {
   const [csvPreview, setCsvPreview] = useState<BaselaneRow[]>([]);
   const [csvParsedCount, setCsvParsedCount] = useState<number>(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
+
+  const [importResult, setImportResult] = useState<{
+    inserted: number;
+    skipped_duplicates: number;
+    skipped_missing_date: number;
+    skipped_missing_amount: number;
+    chunk_errors: number;
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -275,7 +286,7 @@ export default function MoneyPage() {
       date,
       type,
       category: category.trim(),
-      amount: a, // signed allowed
+      amount: a,
       vendor: vendor.trim() || null,
       description: description.trim() || null,
       receipt_link: receipt.trim() || null,
@@ -305,7 +316,6 @@ export default function MoneyPage() {
     const text = await file.text();
     const parsed = parseCSV(text);
 
-    // Map headers to BaselaneRow (your header includes Sub-category with a dash)
     const mapped: BaselaneRow[] = parsed.map((r) => ({
       Account: r["Account"] ?? "",
       Date: r["Date"] ?? "",
@@ -331,15 +341,9 @@ export default function MoneyPage() {
     setImportResult(null);
 
     try {
-      if (!csvName || csvParsedCount === 0) {
-        setErr("Choose a Baselane CSV first.");
-        return;
-      }
-
-      // We only stored preview rows; re-read full file from input to import all
       const f = fileRef.current?.files?.[0];
       if (!f) {
-        setErr("CSV file missing. Re-select the file.");
+        setErr("Choose a Baselane CSV first.");
         return;
       }
 
@@ -347,22 +351,27 @@ export default function MoneyPage() {
       const parsed = parseCSV(text);
 
       const nowSource = "baselane_csv";
+      const inserts: any[] = [];
 
-      // Build inserts
-      const inserts = [];
-      let badRows = 0;
+      let skipped_missing_date = 0;
+      let skipped_missing_amount = 0;
 
       for (const r of parsed) {
         const iso = parseDateToISO(r["Date"]);
+        if (!iso) {
+          skipped_missing_date++;
+          continue;
+        }
+
         const amt0 = parseMoney(r["Amount"]);
-        if (!iso || amt0 === null) {
-          badRows++;
+        if (amt0 === null) {
+          skipped_missing_amount++;
           continue;
         }
 
         const t = normalizeType(r["Type"], amt0);
 
-        // standardize sign: expense negative, income positive
+        // enforce sign: expense negative, income positive
         const amt = t === "expense" ? -Math.abs(amt0) : Math.abs(amt0);
 
         const cat = (r["Category"] || "").trim();
@@ -376,7 +385,6 @@ export default function MoneyPage() {
         const unit = (r["Unit"] || "").trim();
         const acct = (r["Account"] || "").trim();
 
-        // Put property/unit into description for now (we can auto-match to property_id next step)
         const extraBits = [
           acct ? `Account: ${acct}` : null,
           prop ? `Property: ${prop}` : null,
@@ -388,7 +396,6 @@ export default function MoneyPage() {
           ? `${fullDesc ?? ""}${fullDesc ? " | " : ""}${extraBits.join(" | ")}`
           : fullDesc;
 
-        // Deterministic dedupe hash
         const sig = [
           nowSource,
           iso,
@@ -426,38 +433,42 @@ export default function MoneyPage() {
       }
 
       if (inserts.length === 0) {
-        setErr("No valid rows found to import. Check Date/Amount formatting.");
+        setErr("No valid rows found to import. (Dates/Amounts didn’t parse.)");
         return;
       }
 
-      // Insert in chunks to avoid payload limits
       const CHUNK = 250;
       let inserted = 0;
-      let skipped = 0;
-      let errors = 0;
+      let skipped_duplicates = 0;
+      let chunk_errors = 0;
 
       for (let i = 0; i < inserts.length; i += CHUNK) {
         const chunk = inserts.slice(i, i + CHUNK);
 
-        // Upsert using import_hash unique index — duplicates will be skipped via onConflict
         const { data, error } = await supabase
           .from("transactions")
-          .upsert(chunk as any, { onConflict: "import_hash", ignoreDuplicates: true })
+          .upsert(chunk, { onConflict: "import_hash", ignoreDuplicates: true })
           .select("id");
 
         if (error) {
-          // If one chunk fails, count errors and continue
           console.error(error);
-          errors += chunk.length;
+          chunk_errors += chunk.length;
           continue;
         }
 
         const got = (data as any[] | null)?.length ?? 0;
         inserted += got;
-        skipped += (chunk.length - got);
+        skipped_duplicates += (chunk.length - got);
       }
 
-      setImportResult({ inserted, skipped, errors: badRows + errors });
+      setImportResult({
+        inserted,
+        skipped_duplicates,
+        skipped_missing_date,
+        skipped_missing_amount,
+        chunk_errors,
+      });
+
       await load();
     } finally {
       setImporting(false);
@@ -503,7 +514,7 @@ export default function MoneyPage() {
           <div>
             <h2 className="font-semibold">CSV Import (Baselane)</h2>
             <p className="text-sm text-slate-400 mt-1">
-              Upload a Baselane export. Duplicates are automatically skipped.
+              Upload a Baselane export. Duplicates are skipped automatically.
             </p>
           </div>
 
@@ -535,11 +546,14 @@ export default function MoneyPage() {
         )}
 
         {importResult && (
-          <div className="mt-4 text-sm">
-            <div className="text-slate-200">
+          <div className="mt-4 text-sm text-slate-200 space-y-1">
+            <div>
               Imported: <span className="text-slate-100 font-medium">{importResult.inserted}</span> •
-              Skipped (duplicates): <span className="text-slate-100 font-medium">{importResult.skipped}</span> •
-              Errors/invalid rows: <span className="text-slate-100 font-medium">{importResult.errors}</span>
+              Skipped duplicates: <span className="text-slate-100 font-medium">{importResult.skipped_duplicates}</span> •
+              Chunk errors: <span className="text-slate-100 font-medium">{importResult.chunk_errors}</span>
+            </div>
+            <div className="text-slate-400">
+              Skipped (missing date): {importResult.skipped_missing_date} • Skipped (missing amount): {importResult.skipped_missing_amount}
             </div>
           </div>
         )}
@@ -620,9 +634,7 @@ export default function MoneyPage() {
           </div>
 
           <div className="md:col-span-4">
-            <button className="rounded-xl bg-white text-black px-4 py-2">
-              Add
-            </button>
+            <button className="rounded-xl bg-white text-black px-4 py-2">Add</button>
           </div>
         </form>
       </section>
@@ -656,20 +668,9 @@ export default function MoneyPage() {
                   <td className="p-3 text-right">{money2(r.amount)}</td>
                   <td className="p-3">{r.vendor ?? "-"}</td>
                   <td className="p-3">{r.description ?? "-"}</td>
+                  <td className="p-3">{r.receipt_link ? <a className="underline" href={r.receipt_link} target="_blank" rel="noreferrer">Open</a> : "-"}</td>
                   <td className="p-3">
-                    {r.receipt_link ? (
-                      <a className="underline" href={r.receipt_link} target="_blank" rel="noreferrer">
-                        Open
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <button
-                      className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
-                      onClick={() => del(r.id)}
-                    >
+                    <button className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white" onClick={() => del(r.id)}>
                       Delete
                     </button>
                   </td>
@@ -677,9 +678,7 @@ export default function MoneyPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td className="p-3" colSpan={9}>
-                    No results.
-                  </td>
+                  <td className="p-3" colSpan={9}>No results.</td>
                 </tr>
               )}
             </tbody>
