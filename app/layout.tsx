@@ -2,7 +2,7 @@ import "./globals.css";
 import TopNav from "./components/TopNav";
 
 export const metadata = {
-  title: "GH Realty OS",
+  title: "Joanna's Realty Solutions OS",
   description: "Real estate operating system",
 };
 
@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
 
           <footer className="py-10 text-xs text-slate-500">
-            © {new Date().getFullYear()} GH Realty Solutions
+            © {new Date().getFullYear()} Joanna's Realty Solutions LLC
           </footer>
         </div>
       </body>
