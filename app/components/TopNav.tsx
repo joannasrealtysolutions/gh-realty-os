@@ -39,7 +39,7 @@ export default function TopNav() {
   return (
     <header className="py-6 flex items-center justify-between">
       <a href="/" className="font-semibold tracking-tight">
-        GH Realty OS
+        Joanna's Realty Solutions OS
       </a>
 
       <nav className="flex items-center gap-3 text-sm">
