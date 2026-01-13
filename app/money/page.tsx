@@ -134,13 +134,22 @@ function safeCell(r: string[], idx: number | undefined) {
 }
 
 function asNumber(v: string): number | null {
-  const t = String(v ?? "").trim();
+  let t = String(v ?? "").trim();
   if (!t) return null;
-  // strip $ and commas
-  const cleaned = t.replace(/\$/g, "").replace(/,/g, "");
+
+  // handle parentheses negatives: ($52.19)
+  let neg = false;
+  if (t.startsWith("(") && t.endsWith(")")) {
+    neg = true;
+    t = t.slice(1, -1);
+  }
+
+  const cleaned = t.replace(/\$/g, "").replace(/,/g, "").trim();
   const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  return neg ? -n : n;
 }
+
 
 /** receipt_link conventions:
  * - If starts with "storage:receipts/<path>" => open via signed URL
