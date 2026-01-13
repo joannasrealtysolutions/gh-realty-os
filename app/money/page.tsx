@@ -13,42 +13,30 @@ type Tx = {
   description: string | null;
   receipt_link: string | null;
   property_id: string | null;
+
+  // rehab fields
+  is_rehab?: boolean;
+  rehab_project_id?: string | null;
+
   properties?: { address: string } | null;
 };
 
-type PropOption = { id: string; address: string };
-
-type BaselaneRow = {
-  Account?: string;
-  Date?: string;
-  Merchant?: string;
-  Description?: string;
-  Amount?: string;
-  Type?: string;
-  Category?: string;
-  "Sub-category"?: string;
-  Property?: string;
-  Unit?: string;
-  Notes?: string;
+type RehabBudgetRow = {
+  project_id: string;
+  property_id: string;
+  title: string;
+  status: string;
+  budget_target: number | null;
+  rehab_spent_total: number | null;
+  rehab_budget_remaining: number | null;
 };
 
-type NormalizedImport = {
-  date: string;
-  type: "income" | "expense";
-  category: string;
-  amount: number;
-  vendor: string | null;
-  description: string | null;
-  property_id: string | null;
-
-  // metadata for dedupe/debug
-  source: string;
-  import_hash: string;
-  external_account: string | null;
-  external_property: string | null;
-  external_unit: string | null;
-  external_category: string | null;
-  external_subcategory: string | null;
+type RehabProject = {
+  id: string;
+  property_id: string;
+  title: string;
+  status: string;
+  budget_target: number | null;
 };
 
 const inputCls =
@@ -56,145 +44,140 @@ const inputCls =
 const selectCls =
   "mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100";
 
-function money2(n: number | null | undefined) {
-  if (n === null || n === undefined || Number.isNaN(Number(n))) return "-";
-  return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function money2(n: any) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "-";
+  return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function parseMoney(s: any): number | null {
-  if (s === null || s === undefined) return null;
-  let raw = String(s).trim();
-  if (!raw) return null;
+function ymdFromAnyDate(s: string): string | null {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
 
-  const isParenNeg = raw.startsWith("(") && raw.endsWith(")");
-  raw = raw.replace(/^\(/, "").replace(/\)$/, "");
-  raw = raw.replace(/[^0-9.\-]/g, "");
-  if (!raw) return null;
+  // already yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return null;
-
-  return isParenNeg ? -Math.abs(n) : n;
-}
-
-function parseDateToISO(s: any): string | null {
-  if (s === null || s === undefined) return null;
-  const raw0 = String(s).trim();
-  if (!raw0) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}\s/.test(raw0)) return raw0.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw0)) return raw0;
-
-  const mdy = raw0.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // mm/dd/yyyy or m/d/yyyy
+  const mdy = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) {
-    const mm = String(mdy[1]).padStart(2, "0");
-    const dd = String(mdy[2]).padStart(2, "0");
+    const mm = mdy[1].padStart(2, "0");
+    const dd = mdy[2].padStart(2, "0");
     const yyyy = mdy[3];
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  const t = Date.parse(raw0);
-  if (Number.isNaN(t)) return null;
-  return new Date(t).toISOString().slice(0, 10);
+  // fallback: Date parse
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
-function normalizeType(typeText: any, amount: number): "income" | "expense" {
-  const t = String(typeText ?? "").toLowerCase();
-  if (t.includes("income") || t.includes("credit") || t.includes("deposit")) return "income";
-  if (t.includes("expense") || t.includes("debit") || t.includes("withdraw")) return "expense";
-  return amount >= 0 ? "income" : "expense";
-}
-
-function hash32(input: string): string {
-  let h = 5381;
-  for (let i = 0; i < input.length; i++) h = (h * 33) ^ input.charCodeAt(i);
-  return (h >>> 0).toString(16).padStart(8, "0");
-}
-
-function parseCSV(text: string): Record<string, string>[] {
+/** Lightweight CSV parser that handles quoted fields and commas inside quotes */
+function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
-  let cur: string[] = [];
-  let field = "";
+  let row: string[] = [];
+  let cur = "";
   let inQuotes = false;
 
   for (let i = 0; i < text.length; i++) {
-    const c = text[i];
+    const ch = text[i];
 
-    if (inQuotes) {
-      if (c === '"') {
-        const next = text[i + 1];
-        if (next === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
+    if (ch === '"') {
+      const next = text[i + 1];
+      if (inQuotes && next === '"') {
+        // escaped quote
+        cur += '"';
+        i++;
       } else {
-        field += c;
+        inQuotes = !inQuotes;
       }
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ",") {
-        cur.push(field);
-        field = "";
-      } else if (c === "\n") {
-        cur.push(field);
-        field = "";
-        rows.push(cur);
-        cur = [];
-      } else if (c === "\r") {
-        // ignore
-      } else {
-        field += c;
-      }
+      continue;
     }
+
+    if (!inQuotes && (ch === "," || ch === "\n" || ch === "\r")) {
+      if (ch === ",") {
+        row.push(cur);
+        cur = "";
+      } else {
+        // newline handling: treat \r\n or \n or \r as end
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cur);
+        cur = "";
+        // if row not empty (avoid trailing empty line)
+        if (row.some((c) => String(c).trim().length > 0)) rows.push(row);
+        row = [];
+      }
+      continue;
+    }
+
+    cur += ch;
   }
 
-  if (field.length > 0 || cur.length > 0) {
-    cur.push(field);
-    rows.push(cur);
+  // last cell
+  if (cur.length || row.length) {
+    row.push(cur);
+    if (row.some((c) => String(c).trim().length > 0)) rows.push(row);
   }
 
-  if (rows.length === 0) return [];
-
-  const header = rows[0].map((h, idx) => {
-    const trimmed = String(h ?? "").trim();
-    return idx === 0 ? trimmed.replace(/^\uFEFF/, "") : trimmed;
-  });
-
-  const out: Record<string, string>[] = [];
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    if (row.every((x) => !String(x ?? "").trim())) continue;
-    const obj: Record<string, string> = {};
-    for (let c = 0; c < header.length; c++) obj[header[c]] = String(row[c] ?? "").trim();
-    out.push(obj);
-  }
-
-  return out;
+  return rows;
 }
 
-function bestMatchPropertyId(externalProperty: string | null, props: PropOption[]): string | null {
-  const p = (externalProperty || "").trim().toLowerCase();
-  if (!p) return null;
+function getHeaderIndexMap(headers: string[]) {
+  const map = new Map<string, number>();
+  headers.forEach((h, i) => map.set(h.trim().toLowerCase(), i));
+  return map;
+}
 
-  // best-effort: contains match
-  const found = props.find((x) => x.address.toLowerCase().includes(p) || p.includes(x.address.toLowerCase()));
-  return found?.id ?? null;
+function safeCell(r: string[], idx: number | undefined) {
+  if (idx === undefined || idx < 0 || idx >= r.length) return "";
+  return String(r[idx] ?? "").trim();
+}
+
+function asNumber(v: string): number | null {
+  const t = String(v ?? "").trim();
+  if (!t) return null;
+  // strip $ and commas
+  const cleaned = t.replace(/\$/g, "").replace(/,/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** receipt_link conventions:
+ * - If starts with "storage:receipts/<path>" => open via signed URL
+ * - Else treat as normal URL
+ */
+async function openReceipt(receipt_link: string) {
+  if (!receipt_link) return;
+
+  const t = receipt_link.trim();
+  if (t.startsWith("storage:")) {
+    const path = t.replace(/^storage:receipts\//, "");
+    const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 60);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+    return;
+  }
+
+  window.open(t, "_blank");
 }
 
 export default function MoneyPage() {
   const [rows, setRows] = useState<Tx[]>([]);
-  const [props, setProps] = useState<PropOption[]>([]);
-
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
   const [search, setSearch] = useState("");
 
-  // manual add form
-  const [date, setDate] = useState("");
+  // Rehab budgets (owner view)
+  const [rehabBudgets, setRehabBudgets] = useState<RehabBudgetRow[]>([]);
+  const [rehabProjects, setRehabProjects] = useState<RehabProject[]>([]);
+
+  // new transaction form
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [type, setType] = useState<"income" | "expense">("expense");
   const [category, setCategory] = useState("Repairs");
   const [amount, setAmount] = useState("");
@@ -203,24 +186,25 @@ export default function MoneyPage() {
   const [receipt, setReceipt] = useState("");
   const [propertyId, setPropertyId] = useState<string>("");
 
+  // rehab tagging
+  const [isRehab, setIsRehab] = useState(false);
+  const [rehabProjectId, setRehabProjectId] = useState<string>("");
+
   // CSV import
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [csvName, setCsvName] = useState<string>("");
-  const [csvParsedCount, setCsvParsedCount] = useState<number>(0);
-  const [csvPreviewRaw, setCsvPreviewRaw] = useState<BaselaneRow[]>([]);
-  const [csvPreviewNorm, setCsvPreviewNorm] = useState<NormalizedImport[]>([]);
-  const [importing, setImporting] = useState(false);
+  const [csvStatus, setCsvStatus] = useState<string>("");
 
-  const [importResult, setImportResult] = useState<{
-    inserted: number;
-    skipped_duplicates: number;
-    skipped_missing_date: number;
-    skipped_missing_amount: number;
-    chunk_errors: number;
-    first_error: string | null;
-  } | null>(null);
+  // top scrollbar sync
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomScrollRef = useRef<HTMLDivElement | null>(null);
+  const topInnerRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
 
-  async function loadAll() {
+  function syncTopWidth() {
+    const tableW = tableRef.current?.scrollWidth ?? 1200;
+    if (topInnerRef.current) topInnerRef.current.style.width = `${tableW}px`;
+  }
+
+  async function load() {
     setLoading(true);
     setErr(null);
 
@@ -230,37 +214,80 @@ export default function MoneyPage() {
       return;
     }
 
-    const pRes = await supabase.from("properties").select("id,address").order("address");
-    if (!pRes.error) setProps((pRes.data as any) ?? []);
-
-    const { data, error } = await supabase
+    const txRes = await supabase
       .from("transactions")
-      .select("id,date,type,category,amount,vendor,description,receipt_link,property_id, properties:property_id(address)")
+      .select(
+        "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)"
+      )
       .order("date", { ascending: false })
-      .limit(500);
+      .limit(1000);
 
-    if (error) {
-      setErr(error.message);
+    if (txRes.error) {
+      setErr(txRes.error.message);
       setRows([]);
-    } else {
-      setRows((data as any) ?? []);
+      setLoading(false);
+      return;
+    }
+
+    setRows((txRes.data as any) ?? []);
+
+    // rehab budgets view
+    const bRes = await supabase
+      .from("v_rehab_budget")
+      .select("project_id,property_id,title,status,budget_target,rehab_spent_total,rehab_budget_remaining")
+      .order("created_at", { ascending: false } as any);
+
+    if (!bRes.error) {
+      setRehabBudgets((bRes.data as any) ?? []);
+    }
+
+    // rehab projects (for dropdown)
+    const pRes = await supabase
+      .from("rehab_projects")
+      .select("id,property_id,title,status,budget_target")
+      .order("created_at", { ascending: false });
+
+    if (!pRes.error) {
+      setRehabProjects((pRes.data as any) ?? []);
     }
 
     setLoading(false);
+
+    // allow layout settle then measure
+    setTimeout(syncTopWidth, 0);
   }
 
   useEffect(() => {
-    loadAll();
+    load();
+    const onResize = () => syncTopWidth();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // keep top scrollbar width in sync if rows change
+  useEffect(() => {
+    syncTopWidth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows.length]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return rows.filter((r) => {
       if (typeFilter !== "all" && r.type !== typeFilter) return false;
-      const hay = [r.properties?.address, r.type, r.category, r.vendor, r.description]
+
+      const hay = [
+        r.properties?.address,
+        r.type,
+        r.category,
+        r.vendor,
+        r.description,
+        r.is_rehab ? "rehab" : "",
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
+
       return hay.includes(q);
     });
   }, [rows, typeFilter, search]);
@@ -270,213 +297,250 @@ export default function MoneyPage() {
     if (!ok) return;
 
     const { error } = await supabase.from("transactions").delete().eq("id", id);
-    if (error) return alert(error.message);
-    await loadAll();
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    await load();
+  }
+
+  async function uploadReceiptForTx(txId: string, file: File) {
+    try {
+      setErr(null);
+
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      // You must have a Storage bucket named "receipts"
+      // Supabase: Storage -> New bucket -> receipts (private is fine)
+      const safeName = file.name.replace(/\s+/g, "_");
+      const path = `${Date.now()}_${txId}_${safeName}`;
+
+      const up = await supabase.storage.from("receipts").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (up.error) throw new Error(up.error.message);
+
+      // Store as storage pointer (not a public URL)
+      const receipt_link = `storage:receipts/${path}`;
+
+      const { error } = await supabase.from("transactions").update({ receipt_link }).eq("id", txId);
+      if (error) throw new Error(error.message);
+
+      await load();
+    } catch (e: any) {
+      alert(e?.message ?? String(e));
+    }
   }
 
   async function addTx(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
 
-    const a = Number(amount);
+    const a = asNumber(amount);
     if (!date) return setErr("Date is required.");
     if (!category.trim()) return setErr("Category is required.");
-    if (!Number.isFinite(a)) return setErr("Amount must be a number.");
+    if (a === null) return setErr("Amount must be a number.");
 
-    const { error } = await supabase.from("transactions").insert({
+    const payload: any = {
       date,
       type,
       category: category.trim(),
-      amount: a,
+      amount: a, // signed allowed
       vendor: vendor.trim() || null,
       description: description.trim() || null,
       receipt_link: receipt.trim() || null,
       property_id: propertyId || null,
-      source: "manual",
-      import_hash: null,
-    });
 
-    if (error) return setErr(error.message);
+      is_rehab: Boolean(isRehab),
+      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+    };
 
+    const { error } = await supabase.from("transactions").insert(payload);
+
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    // reset a few fields
     setAmount("");
     setVendor("");
     setDescription("");
     setReceipt("");
     setPropertyId("");
-    await loadAll();
+    setIsRehab(false);
+    setRehabProjectId("");
+
+    await load();
   }
 
-  function normalizeBaselane(parsed: Record<string, string>[], propList: PropOption[]): {
-    rawPreview: BaselaneRow[];
-    normAll: NormalizedImport[];
-    skipped_missing_date: number;
-    skipped_missing_amount: number;
-  } {
-    const source = "baselane_csv";
-    let skipped_missing_date = 0;
-    let skipped_missing_amount = 0;
-
-    const rawPreview: BaselaneRow[] = parsed.slice(0, 25).map((r) => ({
-      Account: r["Account"] ?? "",
-      Date: r["Date"] ?? "",
-      Merchant: r["Merchant"] ?? "",
-      Description: r["Description"] ?? "",
-      Amount: r["Amount"] ?? "",
-      Type: r["Type"] ?? "",
-      Category: r["Category"] ?? "",
-      "Sub-category": r["Sub-category"] ?? "",
-      Property: r["Property"] ?? "",
-      Unit: r["Unit"] ?? "",
-      Notes: r["Notes"] ?? "",
-    }));
-
-    const normAll: NormalizedImport[] = [];
-
-    for (const r of parsed) {
-      const iso = parseDateToISO(r["Date"]);
-      if (!iso) {
-        skipped_missing_date++;
-        continue;
-      }
-
-      const amt0 = parseMoney(r["Amount"]);
-      if (amt0 === null) {
-        skipped_missing_amount++;
-        continue;
-      }
-
-      const t = normalizeType(r["Type"], amt0);
-      const amt = t === "expense" ? -Math.abs(amt0) : Math.abs(amt0);
-
-      const cat = (r["Category"] || "").trim();
-      const sub = (r["Sub-category"] || "").trim();
-      const mergedCategory = sub ? `${cat} • ${sub}` : (cat || "Other");
-
-      const merch = (r["Merchant"] || "").trim();
-      const desc = (r["Description"] || "").trim();
-      const notes = (r["Notes"] || "").trim();
-      const prop = (r["Property"] || "").trim();
-      const unit = (r["Unit"] || "").trim();
-      const acct = (r["Account"] || "").trim();
-
-      const extraBits = [
-        acct ? `Account: ${acct}` : null,
-        prop ? `Property: ${prop}` : null,
-        unit ? `Unit: ${unit}` : null,
-      ].filter(Boolean);
-
-      const fullDesc = [desc, notes].filter(Boolean).join(" — ").trim() || null;
-      const fullDescWithMeta = extraBits.length
-        ? `${fullDesc ?? ""}${fullDesc ? " | " : ""}${extraBits.join(" | ")}`
-        : fullDesc;
-
-      const import_hash = `${source}_${hash32(
-        [source, iso, mergedCategory, String(amt.toFixed(2)), merch, desc, notes, acct, prop, unit, String(r["Type"] || "")]
-          .join("||")
-      )}`;
-
-      const matchedPropertyId = bestMatchPropertyId(prop || null, propList);
-
-      normAll.push({
-        date: iso,
-        type: t,
-        category: mergedCategory,
-        amount: amt,
-        vendor: merch || null,
-        description: fullDescWithMeta || null,
-        property_id: matchedPropertyId,
-
-        source,
-        import_hash,
-        external_account: acct || null,
-        external_property: prop || null,
-        external_unit: unit || null,
-        external_category: cat || null,
-        external_subcategory: sub || null,
-      });
-    }
-
-    return { rawPreview, normAll, skipped_missing_date, skipped_missing_amount };
-  }
-
-  async function onPickCSV(file: File) {
+  async function importBaselaneCSV(file: File) {
+    setCsvStatus("");
     setErr(null);
-    setImportResult(null);
-
-    const text = await file.text();
-    const parsed = parseCSV(text);
-
-    const { rawPreview, normAll } = normalizeBaselane(parsed, props);
-
-    setCsvName(file.name);
-    setCsvParsedCount(parsed.length);
-    setCsvPreviewRaw(rawPreview);
-    setCsvPreviewNorm(normAll.slice(0, 25));
-  }
-
-  async function importCSV() {
-    setErr(null);
-    setImporting(true);
-    setImportResult(null);
 
     try {
-      const f = fileRef.current?.files?.[0];
-      if (!f) {
-        setErr("Choose a Baselane CSV first.");
-        return;
-      }
-
-      const text = await f.text();
+      const text = await file.text();
       const parsed = parseCSV(text);
-      const { normAll, skipped_missing_date, skipped_missing_amount } = normalizeBaselane(parsed, props);
-
-      if (normAll.length === 0) {
-        setErr("No valid rows found to import. (Dates/Amounts didn’t parse.)");
+      if (parsed.length < 2) {
+        setCsvStatus("CSV appears empty.");
         return;
       }
 
-      const CHUNK = 250;
-      let inserted = 0;
-      let skipped_duplicates = 0;
-      let chunk_errors = 0;
-      let first_error: string | null = null;
+      const headers = parsed[0].map((h) => h.trim());
+      const map = getHeaderIndexMap(headers);
 
-      for (let i = 0; i < normAll.length; i += CHUNK) {
-        const chunk = normAll.slice(i, i + CHUNK);
+      // Expected Baselane-ish headers the way you shared:
+      // Account, Date, Merchant, Description, Amount, Type, Category, Sub-category, Property, Unit, Notes
+      const idxDate = map.get("date");
+      const idxMerchant = map.get("merchant");
+      const idxDesc = map.get("description");
+      const idxAmt = map.get("amount");
+      const idxType = map.get("type");
+      const idxCat = map.get("category");
+      const idxSub = map.get("sub-category") ?? map.get("sub category");
+      const idxNotes = map.get("notes");
 
-        const { data, error } = await supabase
-          .from("transactions")
-          .upsert(chunk, { onConflict: "import_hash", ignoreDuplicates: true })
-          .select("id");
+      // Build candidate rows
+      const detected = parsed.length - 1;
+      let missingDate = 0;
+      let missingAmount = 0;
 
-        if (error) {
-          chunk_errors += chunk.length;
-          if (!first_error) first_error = error.message;
+      const candidates: Omit<Tx, "id">[] = [];
+      for (let i = 1; i < parsed.length; i++) {
+        const r = parsed[i];
+
+        const d0 = safeCell(r, idxDate);
+        const d = ymdFromAnyDate(d0);
+        if (!d) {
+          missingDate++;
           continue;
         }
 
-        const got = (data as any[] | null)?.length ?? 0;
-        inserted += got;
-        skipped_duplicates += (chunk.length - got);
+        const amt0 = safeCell(r, idxAmt);
+        const amt = asNumber(amt0);
+        if (amt === null) {
+          missingAmount++;
+          continue;
+        }
+
+        const t0 = safeCell(r, idxType).toLowerCase();
+        const inferredType: "income" | "expense" =
+          t0.includes("income") || t0.includes("credit") || amt > 0 ? "income" : "expense";
+
+        const merchant = safeCell(r, idxMerchant);
+        const desc = safeCell(r, idxDesc);
+        const notes = safeCell(r, idxNotes);
+
+        const cat = safeCell(r, idxCat);
+        const sub = safeCell(r, idxSub);
+
+        const finalCategory = (sub || cat || "Other").trim();
+
+        const finalDesc = [desc, notes].filter(Boolean).join(" • ").trim();
+
+        candidates.push({
+          date: d,
+          type: inferredType,
+          category: finalCategory || "Other",
+          amount: amt,
+          vendor: merchant || null,
+          description: finalDesc || null,
+          receipt_link: null,
+          property_id: null,
+          is_rehab: false,
+          rehab_project_id: null,
+          properties: null,
+        });
       }
 
-      setImportResult({
-        inserted,
-        skipped_duplicates,
-        skipped_missing_date,
-        skipped_missing_amount,
-        chunk_errors,
-        first_error,
-      });
+      // Fetch existing recent rows to dedupe client-side
+      const existingRes = await supabase
+        .from("transactions")
+        .select("id,date,amount,type,category,vendor,description")
+        .order("date", { ascending: false })
+        .limit(2000);
 
-      if (first_error) {
-        setErr(`Import failed for some rows: ${first_error}`);
+      const existing = (existingRes.data as any[]) ?? [];
+      const key = (x: any) =>
+        [
+          String(x.date || ""),
+          String(Number(x.amount || 0)),
+          String(x.type || ""),
+          String((x.vendor || "").toLowerCase()),
+          String((x.category || "").toLowerCase()),
+          String((x.description || "").toLowerCase()),
+        ].join("|");
+
+      const existingSet = new Set(existing.map(key));
+
+      const toInsert = candidates.filter((c) => !existingSet.has(key(c)));
+      const skippedDuplicates = candidates.length - toInsert.length;
+
+      // chunk insert
+      let imported = 0;
+      let chunkErrors = 0;
+
+      const chunkSize = 200;
+      for (let i = 0; i < toInsert.length; i += chunkSize) {
+        const chunk = toInsert.slice(i, i + chunkSize).map((c) => ({
+          date: c.date,
+          type: c.type,
+          category: c.category,
+          amount: c.amount,
+          vendor: c.vendor,
+          description: c.description,
+          receipt_link: c.receipt_link,
+          property_id: c.property_id,
+          is_rehab: false,
+          rehab_project_id: null,
+        }));
+
+        const ins = await supabase.from("transactions").insert(chunk);
+        if (ins.error) {
+          chunkErrors++;
+        } else {
+          imported += chunk.length;
+        }
       }
 
-      await loadAll();
-    } finally {
-      setImporting(false);
+      setCsvStatus(
+        `.csv • Rows detected: ${detected}\nImported: ${imported} • Skipped duplicates: ${skippedDuplicates} • Chunk errors: ${chunkErrors}\nSkipped (missing date): ${missingDate} • Skipped (missing amount): ${missingAmount}`
+      );
+
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
     }
+  }
+
+  const rehabTotals = useMemo(() => {
+    let target = 0;
+    let spent = 0;
+    let remaining = 0;
+
+    for (const r of rehabBudgets) {
+      target += Number(r.budget_target ?? 0);
+      spent += Number(r.rehab_spent_total ?? 0);
+      remaining += Number(r.rehab_budget_remaining ?? 0);
+    }
+
+    return { target, spent, remaining, count: rehabBudgets.length };
+  }, [rehabBudgets]);
+
+  function onTopScroll() {
+    if (!topScrollRef.current || !bottomScrollRef.current) return;
+    bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  }
+
+  function onBottomScroll() {
+    if (!topScrollRef.current || !bottomScrollRef.current) return;
+    topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
   }
 
   return (
@@ -484,10 +548,10 @@ export default function MoneyPage() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Money Ledger</h1>
-          <p className="text-sm text-slate-300">Income + expenses (latest 500)</p>
+          <p className="text-sm text-slate-300">Income + expenses (latest 1000)</p>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <input
             className="rounded-xl border border-slate-700 bg-transparent p-2 w-72 text-slate-100"
             placeholder="Search"
@@ -499,12 +563,21 @@ export default function MoneyPage() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as any)}
           >
-            <option value="all" className="bg-slate-950">All</option>
-            <option value="income" className="bg-slate-950">Income</option>
-            <option value="expense" className="bg-slate-950">Expense</option>
+            <option value="all" className="bg-slate-950">
+              All
+            </option>
+            <option value="income" className="bg-slate-950">
+              Income
+            </option>
+            <option value="expense" className="bg-slate-950">
+              Expense
+            </option>
           </select>
 
-          <button className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" onClick={loadAll}>
+          <button
+            className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white"
+            onClick={load}
+          >
             Refresh
           </button>
         </div>
@@ -512,147 +585,102 @@ export default function MoneyPage() {
 
       {err && <p className="mt-6 text-red-400 whitespace-pre-wrap">{err}</p>}
 
-      {/* CSV Import */}
+      {/* Rehab Budgets */}
       <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
-        <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-semibold">CSV Import (Baselane)</h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Preview shows exactly what will be inserted.
-            </p>
+            <h2 className="font-semibold">Rehab Budgets</h2>
+            <p className="text-sm text-slate-400 mt-1">Owner-only: totals across rehab projects.</p>
           </div>
-
-          <div className="flex gap-2 flex-wrap items-center">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onPickCSV(file);
-              }}
-            />
-            <button
-              className="rounded-xl bg-white text-black px-4 py-2"
-              onClick={importCSV}
-              disabled={importing || csvParsedCount === 0}
-            >
-              {importing ? "Importing..." : "Import CSV"}
-            </button>
+          <div className="text-sm text-slate-300">
+            Projects: <span className="text-slate-100 font-medium">{rehabTotals.count}</span>
           </div>
         </div>
 
-        {csvName && (
-          <div className="mt-4 text-sm text-slate-300">
-            {csvName} • Rows detected: <span className="text-slate-100">{csvParsedCount}</span>
-          </div>
-        )}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Stat label="Total Rehab Budget" value={`$${money2(rehabTotals.target)}`} />
+          <Stat label="Total Rehab Spent" value={`$${money2(rehabTotals.spent)}`} />
+          <Stat label="Total Remaining" value={`$${money2(rehabTotals.remaining)}`} />
+        </div>
 
-        {importResult && (
-          <div className="mt-4 text-sm text-slate-200 space-y-1">
-            <div>
-              Imported: <span className="text-slate-100 font-medium">{importResult.inserted}</span> •
-              Skipped duplicates: <span className="text-slate-100 font-medium">{importResult.skipped_duplicates}</span> •
-              Chunk errors: <span className="text-slate-100 font-medium">{importResult.chunk_errors}</span>
-            </div>
-            <div className="text-slate-400">
-              Skipped (missing date): {importResult.skipped_missing_date} • Skipped (missing amount): {importResult.skipped_missing_amount}
-            </div>
-            {importResult.first_error && (
-              <div className="text-red-300">First error: {importResult.first_error}</div>
-            )}
-          </div>
-        )}
-
-        {/* Normalized Preview (matches insert) */}
-        {csvPreviewNorm.length > 0 && (
-          <div className="mt-4 overflow-auto rounded-xl border border-slate-800">
-            <table className="min-w-[1100px] w-full text-sm">
+        {rehabBudgets.length > 0 && (
+          <div className="mt-5 overflow-auto rounded-xl border border-slate-800 bg-slate-950/30">
+            <table className="min-w-[900px] w-full text-sm">
               <thead className="bg-slate-950/40">
                 <tr>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Vendor</th>
-                  <th className="text-left p-3">Type</th>
-                  <th className="text-left p-3">Category</th>
-                  <th className="text-right p-3">Amount</th>
-                  <th className="text-left p-3">Property Match</th>
-                  <th className="text-left p-3">Description</th>
+                  <th className="text-left p-3">Project</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-right p-3">Budget Target</th>
+                  <th className="text-right p-3">Spent</th>
+                  <th className="text-right p-3">Remaining</th>
                 </tr>
               </thead>
               <tbody>
-                {csvPreviewNorm.map((r, idx) => (
-                  <tr key={idx} className="border-t border-slate-800">
-                    <td className="p-3">{r.date}</td>
-                    <td className="p-3">{r.vendor ?? "-"}</td>
-                    <td className="p-3">{r.type}</td>
-                    <td className="p-3">{r.category}</td>
-                    <td className="p-3 text-right">{money2(r.amount)}</td>
-                    <td className="p-3">{r.property_id ? "Matched" : "-"}</td>
-                    <td className="p-3">{r.description ?? "-"}</td>
+                {rehabBudgets.map((b) => (
+                  <tr key={b.project_id} className="border-t border-slate-800">
+                    <td className="p-3 text-slate-200">
+                      {b.title} <span className="text-xs text-slate-500">({b.project_id.slice(0, 6)}…)</span>
+                    </td>
+                    <td className="p-3 text-slate-200">{b.status}</td>
+                    <td className="p-3 text-right text-slate-200">{b.budget_target != null ? `$${money2(b.budget_target)}` : "-"}</td>
+                    <td className="p-3 text-right text-slate-200">{`$${money2(b.rehab_spent_total ?? 0)}`}</td>
+                    <td className="p-3 text-right text-slate-200">{`$${money2(b.rehab_budget_remaining ?? 0)}`}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+      </section>
 
-        {/* Raw Preview (what Baselane gave you) */}
-        {csvPreviewRaw.length > 0 && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm text-slate-300">Show raw Baselane preview</summary>
-            <div className="mt-3 overflow-auto rounded-xl border border-slate-800">
-              <table className="min-w-[1100px] w-full text-sm">
-                <thead className="bg-slate-950/40">
-                  <tr>
-                    <th className="text-left p-3">Date</th>
-                    <th className="text-left p-3">Merchant</th>
-                    <th className="text-left p-3">Type</th>
-                    <th className="text-left p-3">Category</th>
-                    <th className="text-left p-3">Sub-category</th>
-                    <th className="text-left p-3">Property</th>
-                    <th className="text-right p-3">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvPreviewRaw.map((r, idx) => (
-                    <tr key={idx} className="border-t border-slate-800">
-                      <td className="p-3">{r.Date ?? "-"}</td>
-                      <td className="p-3">{r.Merchant ?? "-"}</td>
-                      <td className="p-3">{r.Type ?? "-"}</td>
-                      <td className="p-3">{r.Category ?? "-"}</td>
-                      <td className="p-3">{(r as any)["Sub-category"] ?? "-"}</td>
-                      <td className="p-3">{r.Property ?? "-"}</td>
-                      <td className="p-3 text-right">{r.Amount ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        )}
+      {/* CSV Import */}
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+        <h2 className="font-semibold">CSV Import (Baselane)</h2>
+        <p className="text-sm text-slate-400 mt-1">
+          Upload Baselane CSV. Transactions will dedupe against your latest 2000 by (date, amount, type, vendor, category, description).
+        </p>
+
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importBaselaneCSV(f);
+            }}
+          />
+          {csvStatus && <pre className="text-xs text-slate-300 whitespace-pre-wrap">{csvStatus}</pre>}
+        </div>
       </section>
 
       {/* Add Transaction */}
       <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
         <h2 className="font-semibold">Add Transaction</h2>
-        <p className="text-sm text-slate-400 mt-1">Signed amounts allowed (negative expenses preserved).</p>
+        <p className="text-sm text-slate-400 mt-1">Signed amounts allowed. Rehab tagging is optional.</p>
 
         <form onSubmit={addTx} className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="text-sm text-slate-300">Date</label>
             <input className={inputCls} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+
           <div>
             <label className="text-sm text-slate-300">Type</label>
             <select className={selectCls} value={type} onChange={(e) => setType(e.target.value as any)}>
-              <option value="expense" className="bg-slate-950">expense</option>
-              <option value="income" className="bg-slate-950">income</option>
+              <option value="expense" className="bg-slate-950">
+                expense
+              </option>
+              <option value="income" className="bg-slate-950">
+                income
+              </option>
             </select>
           </div>
+
           <div>
             <label className="text-sm text-slate-300">Category</label>
             <input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} />
           </div>
+
           <div>
             <label className="text-sm text-slate-300">Amount</label>
             <input className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="-50.00" />
@@ -662,17 +690,57 @@ export default function MoneyPage() {
             <label className="text-sm text-slate-300">Vendor</label>
             <input className={inputCls} value={vendor} onChange={(e) => setVendor(e.target.value)} />
           </div>
+
           <div>
             <label className="text-sm text-slate-300">Description</label>
             <input className={inputCls} value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
+
           <div>
-            <label className="text-sm text-slate-300">Receipt Link</label>
-            <input className={inputCls} value={receipt} onChange={(e) => setReceipt(e.target.value)} />
+            <label className="text-sm text-slate-300">Receipt Link (optional)</label>
+            <input className={inputCls} value={receipt} onChange={(e) => setReceipt(e.target.value)} placeholder="https://..." />
           </div>
+
           <div>
             <label className="text-sm text-slate-300">Property ID (optional)</label>
             <input className={inputCls} value={propertyId} onChange={(e) => setPropertyId(e.target.value)} />
+          </div>
+
+          {/* Rehab tagging */}
+          <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={isRehab}
+                onChange={(e) => {
+                  setIsRehab(e.target.checked);
+                  if (!e.target.checked) setRehabProjectId("");
+                }}
+              />
+              Mark as Rehab expense
+            </label>
+            <p className="text-xs text-slate-500 mt-1">
+              If checked, this expense contributes to Rehab totals (and budget remaining).
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="text-sm text-slate-300">Rehab Project (optional)</label>
+            <select
+              className={selectCls}
+              value={rehabProjectId}
+              onChange={(e) => setRehabProjectId(e.target.value)}
+              disabled={!isRehab}
+            >
+              <option value="" className="bg-slate-950">
+                (No project selected)
+              </option>
+              {rehabProjects.map((p) => (
+                <option key={p.id} value={p.id} className="bg-slate-950">
+                  {p.title} • {p.status}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="md:col-span-4">
@@ -685,61 +753,128 @@ export default function MoneyPage() {
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}
 
       {!loading && (
-        <div className="mt-6 overflow-auto rounded-2xl border border-slate-800 bg-slate-900/40">
-          <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-slate-950/40">
-              <tr>
-                <th className="text-left p-3">Date</th>
-                <th className="text-left p-3">Property</th>
-                <th className="text-left p-3">Type</th>
-                <th className="text-left p-3">Category</th>
-                <th className="text-right p-3">Amount</th>
-                <th className="text-left p-3">Vendor</th>
-                <th className="text-left p-3">Description</th>
-                <th className="text-left p-3">Receipt</th>
-                <th className="text-left p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-t border-slate-800">
-                  <td className="p-3">{r.date}</td>
-                  <td className="p-3">{r.properties?.address ?? "-"}</td>
-                  <td className="p-3">{r.type}</td>
-                  <td className="p-3">{r.category}</td>
-                  <td className="p-3 text-right">{money2(r.amount)}</td>
-                  <td className="p-3">{r.vendor ?? "-"}</td>
-                  <td className="p-3">{r.description ?? "-"}</td>
-                  <td className="p-3">
-                    {r.receipt_link ? (
-                      <a className="underline" href={r.receipt_link} target="_blank" rel="noreferrer">
-                        Open
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <button
-                      className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
-                      onClick={() => del(r.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+        <>
+          {/* Top scrollbar */}
+          <div
+            ref={topScrollRef}
+            onScroll={onTopScroll}
+            className="mt-6 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/20"
+            style={{ height: 18 }}
+          >
+            <div ref={topInnerRef} style={{ height: 1 }} />
+          </div>
+
+          {/* Actual table */}
+          <div
+            ref={bottomScrollRef}
+            onScroll={onBottomScroll}
+            className="mt-2 overflow-auto rounded-2xl border border-slate-800 bg-slate-900/40"
+          >
+            <table ref={tableRef} className="min-w-[1400px] w-full text-sm">
+              <thead className="bg-slate-950/40">
                 <tr>
-                  <td className="p-3" colSpan={9}>
-                    No results.
-                  </td>
+                  <th className="text-left p-3">Date</th>
+                  <th className="text-left p-3">Property</th>
+                  <th className="text-left p-3">Type</th>
+                  <th className="text-left p-3">Category</th>
+                  <th className="text-right p-3">Amount</th>
+                  <th className="text-left p-3">Vendor</th>
+                  <th className="text-left p-3">Description</th>
+                  <th className="text-left p-3">Rehab</th>
+                  <th className="text-left p-3">Receipt</th>
+                  <th className="text-left p-3">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody>
+                {filtered.map((r) => (
+                  <tr key={r.id} className="border-t border-slate-800">
+                    <td className="p-3">{r.date}</td>
+                    <td className="p-3">{r.properties?.address ?? "-"}</td>
+                    <td className="p-3">{r.type}</td>
+                    <td className="p-3">{r.category}</td>
+                    <td className="p-3 text-right">{money2(r.amount)}</td>
+                    <td className="p-3">{r.vendor ?? "-"}</td>
+                    <td className="p-3">{r.description ?? "-"}</td>
+                    <td className="p-3">
+                      {r.is_rehab ? (
+                        <span className="inline-flex items-center rounded-full border border-emerald-700/60 bg-emerald-900/20 px-2 py-1 text-xs text-emerald-200">
+                          Rehab
+                        </span>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {r.receipt_link ? (
+                        <button className="underline text-slate-200 hover:text-white" onClick={() => openReceipt(r.receipt_link!)}>
+                          Open
+                        </button>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <a
+                          className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
+                          href={`/transactions/${r.id}/edit`}
+                        >
+                          Edit
+                        </a>
+
+                        <label className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white cursor-pointer">
+                          Upload receipt
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) uploadReceiptForTx(r.id, f);
+                              // reset input
+                              e.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+
+                        <button
+                          className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
+                          onClick={() => del(r.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {filtered.length === 0 && (
+                  <tr>
+                    <td className="p-3" colSpan={10}>
+                      No results.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-3 text-xs text-slate-500">
+            Receipt uploads require a Supabase Storage bucket named <span className="text-slate-300">receipts</span>.
+            If you haven’t created it yet: Supabase → Storage → New bucket → <span className="text-slate-300">receipts</span> (private is fine).
+          </p>
+        </>
       )}
     </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+      <div className="text-sm text-slate-300">{label}</div>
+      <div className="text-2xl font-semibold mt-1">{value}</div>
+    </div>
   );
 }
