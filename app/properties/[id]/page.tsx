@@ -239,11 +239,11 @@ export default function PropertyDetailPage() {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <Panel title="Operating Costs (monthly)">
-                <KeyRow label="Vacancy" value={money2(row.vacancy_calc)} />
-                <KeyRow label="Reserves" value={money2(row.reserves_calc)} />
-                <KeyRow label="Maintenance" value={money2(row.maintenance_calc)} />
-                <KeyRow label="Utilities (est)" value={money2(row.utilities_est)} />
-                <KeyRow label="Admin (est)" value={money2(row.admin_monthly_est)} />
+                <KeyRow label="Vacancy" value={money2(row.vacancy_calc)} explain={<Explain text={`vacancy_calc = rent_est × vacancy_pct`} />} />
+                <KeyRow label="Reserves" value={money2(row.reserves_calc)} explain={<Explain text={`reserves_calc = rent_est × reserves_pct`} />} />
+                <KeyRow label="Maintenance" value={money2(row.maintenance_calc)} explain={<Explain text={`maintenance_calc = rent_est × maintenance_pct`} />} />
+                <KeyRow label="Utilities (est)" value={money2(row.utilities_est)} explain={<Explain text={`utilities_est = input`} />} />
+                <KeyRow label="Admin (est)" value={money2(row.admin_monthly_est)} explain={<Explain text={`admin_monthly_est = input`} />} />
               </Panel>
 
               <Panel title="Cashflow">
@@ -260,9 +260,19 @@ export default function PropertyDetailPage() {
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <Panel title="Break-Even Metrics">
                 <KeyRow label="2-Month Vacancy Carrying Cost" value={money0(row.carrying_cost_2mo_vacancy_calc)} explain={<Explain text={`2 × (PITI + utilities + admin)`} />} />
-                <KeyRow label="Max Rehab/HELOC Budget (break-even)" value={money0(row.max_heloc_budget_break_even_calc)} />
+                <KeyRow
+                  label="Max Rehab/HELOC Budget (break-even)"
+                  value={money0(row.max_heloc_budget_break_even_calc)}
+                  explain={
+                    <Explain text={`Calculated in v_property_tracker using ARV, refi costs, loan payoff, HELOC balance, and carrying costs.`} />
+                  }
+                />
                 <Divider />
-                <KeyRow label="Min Refi LTV Required (break-even)" value={pct(row.min_refi_ltv_break_even_calc)} />
+                <KeyRow
+                  label="Min Refi LTV Required (break-even)"
+                  value={pct(row.min_refi_ltv_break_even_calc)}
+                  explain={<Explain text={`Calculated in v_property_tracker using ARV, loan payoff, rehab budget, and refi costs.`} />}
+                />
               </Panel>
 
               <Panel title="Interpretation">
@@ -280,17 +290,33 @@ export default function PropertyDetailPage() {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <Panel title="Refi Proceeds + Payoffs">
-                <KeyRow label="Refi Amount" value={money0(row.refi_amount_calc)} />
-                <KeyRow label="Refi Costs" value={money0(row.refi_costs_calc)} />
-                <KeyRow label="Net Proceeds after paying off initial loan" value={money0(row.refi_net_proceeds_after_loan_calc)} />
+                <KeyRow label="Refi Amount" value={money0(row.refi_amount_calc)} explain={<Explain text={`refi_amount = ARV (market) × refi_ltv`} />} />
+                <KeyRow label="Refi Costs" value={money0(row.refi_costs_calc)} explain={<Explain text={`refi_costs = refi_amount × refi_cost_pct`} />} />
+                <KeyRow
+                  label="Net Proceeds after paying off initial loan"
+                  value={money0(row.refi_net_proceeds_after_loan_calc)}
+                  explain={<Explain text={`refi_amount − loan payoff − refi_costs`} />}
+                />
               </Panel>
 
               <Panel title="HELOC + Cash Returned">
-                <KeyRow label="HELOC Remaining after refi" value={money0(row.heloc_remaining_after_refi_calc)} />
-                <KeyRow label="Cash to You after refi + HELOC payoff" value={money0(row.cash_to_you_after_refi_and_heloc_calc)} />
+                <KeyRow
+                  label="HELOC Remaining after refi"
+                  value={money0(row.heloc_remaining_after_refi_calc)}
+                  explain={<Explain text={`Calculated in v_property_tracker using HELOC balance and refi proceeds.`} />}
+                />
+                <KeyRow
+                  label="Cash to You after refi + HELOC payoff"
+                  value={money0(row.cash_to_you_after_refi_and_heloc_calc)}
+                  explain={<Explain text={`Refi proceeds minus loan payoff, HELOC payoff, and refi costs.`} />}
+                />
                 <Divider />
                 <KeyRow label="Total Cash Invested (all-in)" value={money0(row.total_cash_invested_calc)} explain={<Explain text={`Excludes HELOC-funded rehab`} />} />
-                <KeyRow label="Cash Left in Deal (post-refi)" value={money0(row.cash_left_in_deal_after_refi_calc)} />
+                <KeyRow
+                  label="Cash Left in Deal (post-refi)"
+                  value={money0(row.cash_left_in_deal_after_refi_calc)}
+                  explain={<Explain text={`Calculated in v_property_tracker using total cash invested and cash returned.`} />}
+                />
               </Panel>
             </div>
           </section>
@@ -301,13 +327,21 @@ export default function PropertyDetailPage() {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <Panel title="Post-Refi Payment Changes">
-                <KeyRow label="Refi PITI (est / mo)" value={money2(row.refi_piti_calc)} />
-                <KeyRow label="HELOC Remaining (after refi)" value={money0(row.heloc_remaining_after_refi_calc)} />
+                <KeyRow label="Refi PITI (est / mo)" value={money2(row.refi_piti_calc)} explain={<Explain text={`refi_amount × piti_factor`} />} />
+                <KeyRow
+                  label="HELOC Remaining (after refi)"
+                  value={money0(row.heloc_remaining_after_refi_calc)}
+                  explain={<Explain text={`Calculated in v_property_tracker using HELOC balance and refi proceeds.`} />}
+                />
               </Panel>
 
               <Panel title="Post-Refi Cashflow">
-                <KeyRow label="Net Cashflow (mo)" value={money2(row.net_cash_flow_post_refi_calc)} />
-                <KeyRow label="Net Cashflow (yr)" value={money2(row.annual_net_cash_flow_post_refi_calc)} />
+                <KeyRow
+                  label="Net Cashflow (mo)"
+                  value={money2(row.net_cash_flow_post_refi_calc)}
+                  explain={<Explain text={`rent − (refi_piti + reserves + utilities + admin + HELOC payment)`} />}
+                />
+                <KeyRow label="Net Cashflow (yr)" value={money2(row.annual_net_cash_flow_post_refi_calc)} explain={<Explain text={`monthly × 12`} />} />
               </Panel>
             </div>
           </section>

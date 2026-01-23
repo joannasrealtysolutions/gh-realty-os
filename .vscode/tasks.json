@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Deploy (safe)",
+      "type": "shell",
+      "command": "scripts/deploy.sh \"Update site\"",
+      "problemMatcher": [],
+      "windows": {
+        "command": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -Message \"Update site\""
+      }
+    },
+    {
+      "label": "Preview (safe)",
+      "type": "shell",
+      "command": "scripts/preview.sh",
+      "problemMatcher": [],
+      "windows": {
+        "command": "powershell -ExecutionPolicy Bypass -File scripts/preview.ps1"
+      }
+    },
+    {
+      "label": "Revert last deploy (safe)",
+      "type": "shell",
+      "command": "scripts/revert-last.sh",
+      "problemMatcher": [],
+      "windows": {
+        "command": "powershell -ExecutionPolicy Bypass -File scripts/revert-last.ps1"
+      }
+    }
+  ]
+}

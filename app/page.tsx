@@ -176,6 +176,11 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-sm text-slate-300 mt-1">Portfolio overview</p>
+          <div className="mt-3">
+            <a className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
+              + Add Property
+            </a>
+          </div>
         </div>
 
         <button

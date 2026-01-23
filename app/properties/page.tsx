@@ -67,6 +67,11 @@ export default function PropertiesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Properties</h1>
           <p className="text-sm text-slate-300 mt-1">Grouped by status</p>
+          <div className="mt-3">
+            <a className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
+              + Add Property
+            </a>
+          </div>
         </div>
 
         <button className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" onClick={load}>
