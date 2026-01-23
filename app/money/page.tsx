@@ -233,7 +233,7 @@ export default function MoneyPage() {
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
-      .limit(1000);
+      .limit(1000)
     ) as PostgrestSingleResponse<Tx[]>;
 
     if (txRes.error) {
@@ -244,7 +244,8 @@ export default function MoneyPage() {
           .from("transactions")
           .select(baseSelect)
           .order("date", { ascending: false })
-          .limit(1000)) as PostgrestSingleResponse<Tx[]>;
+          .limit(1000)
+        ) as PostgrestSingleResponse<Tx[]>;
       }
     }
 
