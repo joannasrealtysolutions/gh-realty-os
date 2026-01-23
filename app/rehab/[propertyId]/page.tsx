@@ -112,6 +112,14 @@ export default function RehabDetailPage() {
     return { todo, doing, waiting, done, cost };
   }, [tasks]);
 
+  const invoices = useMemo(() => {
+    return photos.filter((p) => (p.caption ?? "").toLowerCase().startsWith("invoice:"));
+  }, [photos]);
+
+  const progressPhotos = useMemo(() => {
+    return photos.filter((p) => !(p.caption ?? "").toLowerCase().startsWith("invoice:"));
+  }, [photos]);
+
   async function addTask() {
     if (!project) return;
     const title = newTaskTitle.trim();
@@ -181,6 +189,41 @@ export default function RehabDetailPage() {
         author_user_id: uid,
         storage_path: path,
         caption: null,
+      });
+
+      if (error) throw new Error(error.message);
+
+      load();
+    } catch (e: any) {
+      alert(e?.message ?? String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function uploadInvoice(file: File) {
+    if (!project) return;
+
+    const { data: s } = await supabase.auth.getSession();
+    const uid = s.session?.user?.id;
+    if (!uid) return;
+
+    setUploading(true);
+    try {
+      const path = `${project.property_id}/invoice_${Date.now()}_${file.name}`.replace(/\s+/g, "_");
+
+      const up = await supabase.storage.from("rehab-photos").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (up.error) throw new Error(up.error.message);
+
+      const { error } = await supabase.from("rehab_photos").insert({
+        project_id: project.id,
+        author_user_id: uid,
+        storage_path: path,
+        caption: `Invoice: ${file.name}`,
       });
 
       if (error) throw new Error(error.message);
@@ -318,7 +361,7 @@ export default function RehabDetailPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {photos.map((p) => (
+          {progressPhotos.map((p) => (
             <button
               key={p.id}
               className="text-left rounded-xl border border-slate-800 bg-slate-900/40 p-3 hover:bg-slate-900"
@@ -328,7 +371,39 @@ export default function RehabDetailPage() {
               <div className="text-xs text-slate-500 mt-1">{new Date(p.created_at).toLocaleString()}</div>
             </button>
           ))}
-          {photos.length === 0 && <p className="text-sm text-slate-400">No photos yet.</p>}
+          {progressPhotos.length === 0 && <p className="text-sm text-slate-400">No photos yet.</p>}
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+        <h2 className="font-semibold">Invoices</h2>
+        <p className="text-sm text-slate-400 mt-1">Upload invoice PDFs or images.</p>
+
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadInvoice(f);
+            }}
+          />
+          {uploading && <span className="text-sm text-slate-300">Uploading...</span>}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {invoices.map((p) => (
+            <button
+              key={p.id}
+              className="text-left rounded-xl border border-slate-800 bg-slate-900/40 p-3 hover:bg-slate-900"
+              onClick={() => openPhoto(p.storage_path)}
+            >
+              <div className="text-sm text-slate-100 break-all">{p.caption ?? p.storage_path}</div>
+              <div className="text-xs text-slate-500 mt-1">{new Date(p.created_at).toLocaleString()}</div>
+            </button>
+          ))}
+          {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices yet.</p>}
         </div>
       </section>
     </main>

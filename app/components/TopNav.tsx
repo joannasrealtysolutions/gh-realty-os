@@ -49,6 +49,9 @@ export default function TopNav() {
         <a className="text-slate-200 hover:text-white" href="/money">
           Money
         </a>
+        <a className="text-slate-200 hover:text-white" href="/closing-costs">
+          Closing Costs
+        </a>
         <a className="text-slate-200 hover:text-white" href="/rehab">
           Rehab
         </a>

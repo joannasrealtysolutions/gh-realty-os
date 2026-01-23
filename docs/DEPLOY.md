@@ -32,8 +32,6 @@ Both scripts:
 - commit + push
 - print rollback options
 
-<<<<<<< ours
-=======
 ## 3) Preview-only script (no push)
 
 ### Windows PowerShell
@@ -51,8 +49,7 @@ The preview script:
 - shows git status
 - optionally starts `npm run dev`
 
->>>>>>> theirs
-## 3) Rollback options
+## 4) Rollback options
 ### Git revert
 ```bash
 git revert <commit_sha>
@@ -60,13 +57,10 @@ git push
 ```
 
 ### Vercel rollback
-Open Vercel → Deployments → pick a previous deploy → **Redeploy**
-<<<<<<< ours
-=======
+Open Vercel -> Deployments -> pick a previous deploy -> **Redeploy**
 
-## 4) VS Code tasks (one click)
-Open the Command Palette → **Tasks: Run Task** and choose:
+## 5) VS Code tasks (one click)
+Open the Command Palette -> **Tasks: Run Task** and choose:
 - Deploy (safe)
 - Preview (safe)
 - Revert last deploy (safe)
->>>>>>> theirs

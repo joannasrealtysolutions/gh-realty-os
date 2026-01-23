@@ -64,9 +64,17 @@ export default function RehabPage() {
           <div className="mt-2 text-xs text-slate-400">Active: {activeRows.length} • Completed: {completedRows.length}</div>
         </div>
 
-        <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
-          Refresh
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <a
+            className="rounded-xl bg-white text-black px-3 py-2 text-sm"
+            href="/rehab/new"
+          >
+            + New Rehab Project
+          </a>
+          <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}

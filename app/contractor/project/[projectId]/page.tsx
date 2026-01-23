@@ -55,6 +55,10 @@ export default function ContractorProjectPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newNote, setNewNote] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [editStatus, setEditStatus] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editTargetEndDate, setEditTargetEndDate] = useState("");
 
   async function load() {
     setLoading(true);
@@ -80,6 +84,9 @@ export default function ContractorProjectPage() {
 
     const p = pr.data as any as Project;
     setProject(p);
+    setEditStatus(p.status);
+    setEditStartDate(p.start_date ?? "");
+    setEditTargetEndDate(p.target_end_date ?? "");
 
     const tRes = await supabase
       .from("rehab_tasks")
@@ -129,6 +136,20 @@ export default function ContractorProjectPage() {
     }
     return { todo, doing, waiting, done, cost };
   }, [tasks]);
+
+  const progressPct = useMemo(() => {
+    const total = totals.todo + totals.doing + totals.waiting + totals.done;
+    if (!total) return 0;
+    return Math.round((totals.done / total) * 100);
+  }, [totals]);
+
+  const invoices = useMemo(() => {
+    return photos.filter((p) => (p.caption ?? "").toLowerCase().startsWith("invoice:"));
+  }, [photos]);
+
+  const progressPhotos = useMemo(() => {
+    return photos.filter((p) => !(p.caption ?? "").toLowerCase().startsWith("invoice:"));
+  }, [photos]);
 
   async function addTask() {
     if (!project) return;
@@ -211,6 +232,61 @@ export default function ContractorProjectPage() {
     }
   }
 
+  async function uploadInvoice(file: File) {
+    if (!project) return;
+
+    const { data: s } = await supabase.auth.getSession();
+    const uid = s.session?.user?.id;
+    if (!uid) return;
+
+    setUploading(true);
+    try {
+      const path = `${project.id}/invoice_${Date.now()}_${file.name}`.replace(/\s+/g, "_");
+
+      const up = await supabase.storage.from("rehab-photos").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (up.error) throw new Error(up.error.message);
+
+      const { error } = await supabase.from("rehab_photos").insert({
+        project_id: project.id,
+        author_user_id: uid,
+        storage_path: path,
+        caption: `Invoice: ${file.name}`,
+      });
+
+      if (error) throw new Error(error.message);
+
+      load();
+    } catch (e: any) {
+      alert(e?.message ?? String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function saveMeta() {
+    if (!project) return;
+    setSavingMeta(true);
+    const { error } = await supabase
+      .from("rehab_projects")
+      .update({
+        status: editStatus,
+        start_date: editStartDate || null,
+        target_end_date: editTargetEndDate || null,
+      })
+      .eq("id", project.id);
+
+    if (error) {
+      alert(error.message);
+    } else {
+      load();
+    }
+    setSavingMeta(false);
+  }
+
   async function openPhoto(path: string) {
     const { data, error } = await supabase.storage.from("rehab-photos").createSignedUrl(path, 60);
     if (error) alert(error.message);
@@ -250,7 +326,48 @@ export default function ContractorProjectPage() {
         <Card label="Done" value={String(totals.done)} />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card label="Progress" value={`${progressPct}%`} />
+        <Card label="Est. Task Cost" value={`$${money(totals.cost)}`} />
+        <Card label="Invoices" value={String(invoices.length)} />
+      </div>
+
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+        <h2 className="font-semibold">Timeline & Status</h2>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm text-slate-300">Status</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editStatus}
+              onChange={(e) => setEditStatus(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Start date</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              type="date"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Target end date</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              type="date"
+              value={editTargetEndDate}
+              onChange={(e) => setEditTargetEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+        <button className="mt-4 rounded-xl bg-white text-black px-4 py-2" onClick={saveMeta} disabled={savingMeta}>
+          {savingMeta ? "Saving..." : "Save Timeline"}
+        </button>
+      </section>
+
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
           <h2 className="font-semibold">Tasks</h2>
 
@@ -317,6 +434,40 @@ export default function ContractorProjectPage() {
             {notes.length === 0 && <p className="text-sm text-slate-400 mt-2">No notes yet.</p>}
           </div>
         </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+          <h2 className="font-semibold">Invoices</h2>
+          <p className="text-xs text-slate-500 mt-1">Upload invoices as PDF or image.</p>
+          <div className="mt-3 flex items-center gap-3">
+            <label className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white cursor-pointer">
+              Upload invoice
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadInvoice(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            {uploading && <span className="text-xs text-slate-500">Uploading...</span>}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {invoices.map((ph) => (
+              <button
+                key={ph.id}
+                className="block text-left text-slate-200 hover:text-white underline"
+                onClick={() => openPhoto(ph.storage_path)}
+              >
+                {ph.caption ?? ph.storage_path}
+              </button>
+            ))}
+            {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices uploaded yet.</p>}
+          </div>
+        </section>
       </div>
 
       <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
@@ -337,7 +488,7 @@ export default function ContractorProjectPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {photos.map((p) => (
+          {progressPhotos.map((p) => (
             <button
               key={p.id}
               className="text-left rounded-xl border border-slate-800 bg-slate-900/40 p-3 hover:bg-slate-900"
@@ -347,7 +498,7 @@ export default function ContractorProjectPage() {
               <div className="text-xs text-slate-500 mt-1">{new Date(p.created_at).toLocaleString()}</div>
             </button>
           ))}
-          {photos.length === 0 && <p className="text-sm text-slate-400">No photos yet.</p>}
+          {progressPhotos.length === 0 && <p className="text-sm text-slate-400">No photos yet.</p>}
         </div>
       </section>
     </main>

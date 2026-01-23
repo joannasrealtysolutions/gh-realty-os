@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 
 type PropOption = { id: string; address: string };
+type RehabProject = { id: string; title: string; status: string };
 
 const CATEGORIES = [
   "Rent",
@@ -26,6 +27,8 @@ export default function NewTransactionPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [props, setProps] = useState<PropOption[]>([]);
+  const [rehabProjects, setRehabProjects] = useState<RehabProject[]>([]);
+  const [costTagAvailable, setCostTagAvailable] = useState(true);
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [type, setType] = useState<"income" | "expense">("expense");
@@ -35,6 +38,9 @@ export default function NewTransactionPage() {
   const [description, setDescription] = useState("");
   const [receiptLink, setReceiptLink] = useState("");
   const [propertyId, setPropertyId] = useState<string>("");
+  const [isRehab, setIsRehab] = useState(false);
+  const [rehabProjectId, setRehabProjectId] = useState("");
+  const [costTag, setCostTag] = useState("none");
 
   useEffect(() => {
     (async () => {
@@ -50,6 +56,14 @@ export default function NewTransactionPage() {
       const { data, error } = await supabase.from("properties").select("id,address").order("address");
       if (error) setErr(error.message);
       setProps((data as any) ?? []);
+
+      const rpRes = await supabase.from("rehab_projects").select("id,title,status").order("created_at", { ascending: false });
+      if (!rpRes.error) setRehabProjects((rpRes.data as any) ?? []);
+
+      const ctRes = await supabase.from("transactions").select("id,cost_tag").limit(1);
+      if (ctRes.error && ctRes.error.message.toLowerCase().includes("cost_tag")) {
+        setCostTagAvailable(false);
+      }
       setLoading(false);
     })();
   }, []);
@@ -66,7 +80,7 @@ export default function NewTransactionPage() {
       return;
     }
 
-    const { error } = await supabase.from("transactions").insert({
+    const payload: any = {
       date,
       type,
       category,
@@ -75,7 +89,12 @@ export default function NewTransactionPage() {
       description: description.trim() || null,
       receipt_link: receiptLink.trim() || null,
       property_id: propertyId || null,
-    });
+      is_rehab: Boolean(isRehab),
+      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+    };
+    if (costTagAvailable) payload.cost_tag = costTag !== "none" ? costTag : null;
+
+    const { error } = await supabase.from("transactions").insert(payload);
 
     if (error) {
       setErr(error.message);
@@ -195,6 +214,62 @@ export default function NewTransactionPage() {
                   placeholder="What was this for?"
                 />
               </Field>
+
+              <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+                <label className="flex items-center gap-2 text-sm text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={isRehab}
+                    onChange={(e) => {
+                      setIsRehab(e.target.checked);
+                      if (!e.target.checked) setRehabProjectId("");
+                    }}
+                  />
+                  Mark as Rehab expense
+                </label>
+                <p className="text-xs text-slate-500 mt-1">If checked, this contributes to Rehab budget totals.</p>
+
+                <div className="mt-3">
+                  <label className="text-sm text-slate-300">Rehab Project (optional)</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                    value={rehabProjectId}
+                    onChange={(e) => setRehabProjectId(e.target.value)}
+                    disabled={!isRehab}
+                  >
+                    <option value="" className="bg-slate-950">
+                      (No project selected)
+                    </option>
+                    {rehabProjects.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-slate-950">
+                        {p.title} • {p.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+                <label className="text-sm text-slate-300">Cost Tag (optional)</label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                  value={costTag}
+                  onChange={(e) => setCostTag(e.target.value)}
+                  disabled={!costTagAvailable}
+                >
+                  <option value="none" className="bg-slate-950">
+                    (No tag)
+                  </option>
+                  <option value="closing" className="bg-slate-950">
+                    Closing Costs
+                  </option>
+                </select>
+                {!costTagAvailable && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Cost tags require a <span className="text-slate-300">cost_tag</span> column in Supabase.
+                  </p>
+                )}
+              </div>
             </div>
 
             <button disabled={saving} className="mt-6 rounded-xl bg-white text-black px-4 py-2">

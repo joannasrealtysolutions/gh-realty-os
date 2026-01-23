@@ -32,6 +32,7 @@ export default function EditTransactionPage() {
 
   const [props, setProps] = useState<PropOption[]>([]);
   const [rehabProjects, setRehabProjects] = useState<RehabProject[]>([]);
+  const [costTagAvailable, setCostTagAvailable] = useState(true);
 
   const [date, setDate] = useState("");
   const [type, setType] = useState<"income" | "expense">("expense");
@@ -45,6 +46,7 @@ export default function EditTransactionPage() {
   // rehab fields
   const [isRehab, setIsRehab] = useState(false);
   const [rehabProjectId, setRehabProjectId] = useState<string>("");
+  const [costTag, setCostTag] = useState("none");
 
   useEffect(() => {
     (async () => {
@@ -72,11 +74,20 @@ export default function EditTransactionPage() {
 
       if (!rpRes.error) setRehabProjects((rpRes.data as any) ?? []);
 
-      const tRes = await supabase
+      const baseSelect = "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id";
+      let tRes = await supabase
         .from("transactions")
-        .select("id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id")
+        .select(`${baseSelect},cost_tag`)
         .eq("id", id)
         .single();
+
+      if (tRes.error) {
+        const msg = tRes.error.message.toLowerCase();
+        if (msg.includes("cost_tag")) {
+          setCostTagAvailable(false);
+          tRes = await supabase.from("transactions").select(baseSelect).eq("id", id).single();
+        }
+      }
 
       if (tRes.error) {
         setErr(tRes.error.message);
@@ -96,6 +107,7 @@ export default function EditTransactionPage() {
 
       setIsRehab(Boolean(r.is_rehab));
       setRehabProjectId(r.rehab_project_id ?? "");
+      setCostTag(r.cost_tag ?? "none");
 
       setLoading(false);
     })();
@@ -113,22 +125,22 @@ export default function EditTransactionPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("transactions")
-      .update({
-        date,
-        type,
-        category,
-        amount: amt,
-        vendor: vendor.trim() || null,
-        description: description.trim() || null,
-        receipt_link: receiptLink.trim() || null,
-        property_id: propertyId || null,
+    const payload: any = {
+      date,
+      type,
+      category,
+      amount: amt,
+      vendor: vendor.trim() || null,
+      description: description.trim() || null,
+      receipt_link: receiptLink.trim() || null,
+      property_id: propertyId || null,
 
-        is_rehab: Boolean(isRehab),
-        rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
-      })
-      .eq("id", id);
+      is_rehab: Boolean(isRehab),
+      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+    };
+    if (costTagAvailable) payload.cost_tag = costTag !== "none" ? costTag : null;
+
+    const { error } = await supabase.from("transactions").update(payload).eq("id", id);
 
     if (error) {
       setErr(error.message);
@@ -234,6 +246,24 @@ export default function EditTransactionPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+                <label className="text-sm text-slate-300">Cost Tag (optional)</label>
+                <select
+                  className={inputCls}
+                  value={costTag}
+                  onChange={(e) => setCostTag(e.target.value)}
+                  disabled={!costTagAvailable}
+                >
+                  <option value="none" className="bg-slate-950">(No tag)</option>
+                  <option value="closing" className="bg-slate-950">Closing Costs</option>
+                </select>
+                {!costTagAvailable && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Cost tags require a <span className="text-slate-300">cost_tag</span> column in Supabase.
+                  </p>
+                )}
               </div>
             </div>
 

@@ -13,6 +13,7 @@ type Tx = {
   description: string | null;
   receipt_link: string | null;
   property_id: string | null;
+  cost_tag?: string | null;
 
   // rehab fields
   is_rehab?: boolean;
@@ -184,6 +185,7 @@ export default function MoneyPage() {
   // Rehab budgets (owner view)
   const [rehabBudgets, setRehabBudgets] = useState<RehabBudgetRow[]>([]);
   const [rehabProjects, setRehabProjects] = useState<RehabProject[]>([]);
+  const [costTagAvailable, setCostTagAvailable] = useState(true);
 
   // new transaction form
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -198,6 +200,7 @@ export default function MoneyPage() {
   // rehab tagging
   const [isRehab, setIsRehab] = useState(false);
   const [rehabProjectId, setRehabProjectId] = useState<string>("");
+  const [costTag, setCostTag] = useState("none");
 
   // CSV import
   const [csvStatus, setCsvStatus] = useState<string>("");
@@ -223,13 +226,21 @@ export default function MoneyPage() {
       return;
     }
 
-    const txRes = await supabase
+    const baseSelect =
+      "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)";
+    let txRes = await supabase
       .from("transactions")
-      .select(
-        "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)"
-      )
+      .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
       .limit(1000);
+
+    if (txRes.error) {
+      const msg = txRes.error.message.toLowerCase();
+      if (msg.includes("cost_tag")) {
+        setCostTagAvailable(false);
+        txRes = await supabase.from("transactions").select(baseSelect).order("date", { ascending: false }).limit(1000);
+      }
+    }
 
     if (txRes.error) {
       setErr(txRes.error.message);
@@ -292,6 +303,7 @@ export default function MoneyPage() {
         r.vendor,
         r.description,
         r.is_rehab ? "rehab" : "",
+        r.cost_tag ?? "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -369,6 +381,9 @@ export default function MoneyPage() {
       is_rehab: Boolean(isRehab),
       rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
     };
+    if (costTagAvailable) {
+      payload.cost_tag = costTag !== "none" ? costTag : null;
+    }
 
     const { error } = await supabase.from("transactions").insert(payload);
 
@@ -385,6 +400,7 @@ export default function MoneyPage() {
     setPropertyId("");
     setIsRehab(false);
     setRehabProjectId("");
+    setCostTag("none");
 
     await load();
   }
@@ -542,6 +558,17 @@ export default function MoneyPage() {
     return { target, spent, remaining, count: rehabBudgets.length };
   }, [rehabBudgets]);
 
+  const closingRows = useMemo(() => {
+    if (costTagAvailable) return rows.filter((r) => r.cost_tag === "closing");
+    return rows.filter((r) => String(r.category || "").toLowerCase().includes("closing"));
+  }, [rows, costTagAvailable]);
+
+  const closingTotals = useMemo(() => {
+    let total = 0;
+    for (const r of closingRows) total += Number(r.amount ?? 0);
+    return { total, count: closingRows.length };
+  }, [closingRows]);
+
   function onTopScroll() {
     if (!topScrollRef.current || !bottomScrollRef.current) return;
     bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
@@ -561,6 +588,9 @@ export default function MoneyPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
+          <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/closing-costs">
+            Closing Costs
+          </a>
           <input
             className="rounded-xl border border-slate-700 bg-transparent p-2 w-72 text-slate-100"
             placeholder="Search"
@@ -639,6 +669,56 @@ export default function MoneyPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      {/* Closing Costs */}
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold">Closing Costs</h2>
+            <p className="text-sm text-slate-400 mt-1">
+              Tagged transactions for down payment, app fees, closing costs, etc.
+            </p>
+          </div>
+          <div className="text-sm text-slate-300">
+            Count: <span className="text-slate-100 font-medium">{closingTotals.count}</span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Stat label="Closing Costs Total" value={`$${money2(closingTotals.total)}`} />
+          <Stat label="Average / Item" value={closingTotals.count ? `$${money2(closingTotals.total / closingTotals.count)}` : "-"} />
+          <Stat label="Tagged Items" value={String(closingTotals.count)} />
+        </div>
+
+        {closingRows.length > 0 ? (
+          <div className="mt-5 overflow-auto rounded-xl border border-slate-800 bg-slate-950/30">
+            <table className="min-w-[900px] w-full text-sm">
+              <thead className="bg-slate-950/40">
+                <tr>
+                  <th className="text-left p-3">Date</th>
+                  <th className="text-left p-3">Property</th>
+                  <th className="text-left p-3">Category</th>
+                  <th className="text-right p-3">Amount</th>
+                  <th className="text-left p-3">Vendor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closingRows.map((r) => (
+                  <tr key={r.id} className="border-t border-slate-800">
+                    <td className="p-3">{r.date}</td>
+                    <td className="p-3">{r.properties?.address ?? "-"}</td>
+                    <td className="p-3">{r.category}</td>
+                    <td className="p-3 text-right">{money2(r.amount)}</td>
+                    <td className="p-3">{r.vendor ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 mt-3">No closing costs tagged yet.</p>
         )}
       </section>
 
@@ -752,6 +832,29 @@ export default function MoneyPage() {
             </select>
           </div>
 
+          <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+            <label className="text-sm text-slate-300">Cost Tag (optional)</label>
+            <select
+              className={selectCls}
+              value={costTag}
+              onChange={(e) => setCostTag(e.target.value)}
+              disabled={!costTagAvailable}
+            >
+              <option value="none" className="bg-slate-950">
+                (No tag)
+              </option>
+              <option value="closing" className="bg-slate-950">
+                Closing Costs
+              </option>
+            </select>
+            {!costTagAvailable && (
+              <p className="text-xs text-slate-500 mt-1">
+                Cost tags require a <span className="text-slate-300">cost_tag</span> column in Supabase. Ask me to set it
+                up.
+              </p>
+            )}
+          </div>
+
           <div className="md:col-span-4">
             <button className="rounded-xl bg-white text-black px-4 py-2">Add</button>
           </div>
@@ -789,7 +892,7 @@ export default function MoneyPage() {
                   <th className="text-right p-3">Amount</th>
                   <th className="text-left p-3">Vendor</th>
                   <th className="text-left p-3">Description</th>
-                  <th className="text-left p-3">Rehab</th>
+                  <th className="text-left p-3">Tags</th>
                   <th className="text-left p-3">Receipt</th>
                   <th className="text-left p-3">Actions</th>
                 </tr>
@@ -806,13 +909,21 @@ export default function MoneyPage() {
                     <td className="p-3">{r.vendor ?? "-"}</td>
                     <td className="p-3">{r.description ?? "-"}</td>
                     <td className="p-3">
-                      {r.is_rehab ? (
-                        <span className="inline-flex items-center rounded-full border border-emerald-700/60 bg-emerald-900/20 px-2 py-1 text-xs text-emerald-200">
-                          Rehab
-                        </span>
-                      ) : (
-                        "-"
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {r.is_rehab && (
+                          <span className="inline-flex items-center rounded-full border border-emerald-700/60 bg-emerald-900/20 px-2 py-1 text-xs text-emerald-200">
+                            Rehab
+                          </span>
+                        )}
+                        {(r.cost_tag === "closing" || (!costTagAvailable && String(r.category || "").toLowerCase().includes("closing"))) && (
+                          <span className="inline-flex items-center rounded-full border border-sky-700/60 bg-sky-900/20 px-2 py-1 text-xs text-sky-200">
+                            Closing
+                          </span>
+                        )}
+                        {!r.is_rehab &&
+                          !(r.cost_tag === "closing" || (!costTagAvailable && String(r.category || "").toLowerCase().includes("closing"))) &&
+                          "-"}
+                      </div>
                     </td>
                     <td className="p-3">
                       {r.receipt_link ? (
