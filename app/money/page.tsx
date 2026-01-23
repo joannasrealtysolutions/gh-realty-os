@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 
 type Tx = {
@@ -228,17 +229,22 @@ export default function MoneyPage() {
 
     const baseSelect =
       "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)";
-    let txRes = await supabase
+    let txRes = (await supabase
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
       .limit(1000);
+    ) as PostgrestSingleResponse<Tx[]>;
 
     if (txRes.error) {
       const msg = txRes.error.message.toLowerCase();
       if (msg.includes("cost_tag")) {
         setCostTagAvailable(false);
-        txRes = await supabase.from("transactions").select(baseSelect).order("date", { ascending: false }).limit(1000);
+        txRes = (await supabase
+          .from("transactions")
+          .select(baseSelect)
+          .order("date", { ascending: false })
+          .limit(1000)) as PostgrestSingleResponse<Tx[]>;
       }
     }
 

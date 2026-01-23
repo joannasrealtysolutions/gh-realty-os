@@ -267,7 +267,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-3 text-xs text-slate-500">
-            Tip: totals use only the checked propertiesssssss above.
+            Tip: totals use only the checked properties above.
           </div>
         </section>
       )}
