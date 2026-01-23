@@ -66,6 +66,12 @@ export default function NewRehabProjectPage() {
       return;
     }
 
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      window.location.href = "/login";
+      return;
+    }
+
     const payload: any = {
       property_id: propertyId,
       title: title.trim(),
@@ -75,9 +81,30 @@ export default function NewRehabProjectPage() {
       target_end_date: targetEndDate || null,
     };
 
-    const { error } = await supabase.from("rehab_projects").insert(payload);
-    if (error) {
-      setErr(error.message);
+    const { data: insertedProject, error: projectError } = await supabase
+      .from("rehab_projects")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (projectError || !insertedProject?.id) {
+      setErr(projectError?.message ?? "Failed to create project.");
+      setSaving(false);
+      return;
+    }
+
+    const userId = session.session?.user.id;
+    if (!userId) {
+      setErr("Unable to verify your identity.");
+      setSaving(false);
+      return;
+    }
+
+    const { error: memberError } = await supabase.from("rehab_members").insert({
+      rehab_project_id: insertedProject.id,
+      user_id: userId,
+    });
+    if (memberError) {
+      setErr(memberError.message);
       setSaving(false);
       return;
     }

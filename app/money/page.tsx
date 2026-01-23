@@ -177,6 +177,7 @@ async function openReceipt(receipt_link: string) {
 
 export default function MoneyPage() {
   const [rows, setRows] = useState<Tx[]>([]);
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -252,11 +253,13 @@ export default function MoneyPage() {
     if (txRes.error) {
       setErr(txRes.error.message);
       setRows([]);
+      setSelectedTxIds([]);
       setLoading(false);
       return;
     }
 
     setRows((txRes.data as any) ?? []);
+    setSelectedTxIds([]);
 
     // rehab budgets view
     const bRes = await supabase
@@ -319,6 +322,43 @@ export default function MoneyPage() {
       return hay.includes(q);
     });
   }, [rows, typeFilter, search]);
+
+  const selectedSet = useMemo(() => new Set(selectedTxIds), [selectedTxIds]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every((r) => selectedSet.has(r.id));
+  const selectedCount = selectedTxIds.length;
+
+  function toggleTxSelection(id: string, checked: boolean) {
+    setSelectedTxIds((prev) => {
+      if (checked) {
+        if (prev.includes(id)) return prev;
+        return [...prev, id];
+      }
+      return prev.filter((existing) => existing !== id);
+    });
+  }
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedTxIds(filtered.map((r) => r.id));
+    } else {
+      setSelectedTxIds([]);
+    }
+  }
+
+  async function deleteSelectedTxs() {
+    if (!selectedCount) return;
+    const ok = window.confirm(`Delete ${selectedCount} selected transaction${selectedCount === 1 ? "" : "s"}?`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("transactions").delete().in("id", selectedTxIds);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    setSelectedTxIds([]);
+    await load();
+  }
 
   async function del(id: string) {
     const ok = window.confirm("Delete this transaction?");
@@ -626,6 +666,14 @@ export default function MoneyPage() {
           >
             Refresh
           </button>
+          {selectedCount > 0 && (
+            <button
+              className="rounded-xl border border-rose-600 bg-rose-600/10 px-3 py-2 text-rose-200 hover:text-white"
+              onClick={deleteSelectedTxs}
+            >
+              Delete {selectedCount} selected
+            </button>
+          )}
         </div>
       </div>
 
@@ -892,6 +940,14 @@ export default function MoneyPage() {
             <table ref={tableRef} className="min-w-[1400px] w-full text-sm">
               <thead className="bg-slate-950/40">
                 <tr>
+                  <th className="text-center p-3">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      aria-label="Select all visible"
+                    />
+                  </th>
                   <th className="text-left p-3">Date</th>
                   <th className="text-left p-3">Property</th>
                   <th className="text-left p-3">Type</th>
@@ -908,6 +964,14 @@ export default function MoneyPage() {
               <tbody>
                 {filtered.map((r) => (
                   <tr key={r.id} className="border-t border-slate-800">
+                    <td className="p-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(r.id)}
+                        onChange={(e) => toggleTxSelection(r.id, e.target.checked)}
+                        aria-label={`Select transaction ${r.id}`}
+                      />
+                    </td>
                     <td className="p-3">{r.date}</td>
                     <td className="p-3">{r.properties?.address ?? "-"}</td>
                     <td className="p-3">{r.type}</td>
@@ -978,7 +1042,7 @@ export default function MoneyPage() {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td className="p-3" colSpan={10}>
+                    <td className="p-3" colSpan={11}>
                       No results.
                     </td>
                   </tr>
