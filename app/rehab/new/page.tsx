@@ -66,12 +66,15 @@ export default function NewRehabProjectPage() {
       return;
     }
 
+<<<<<<< ours
     const { data: session } = await supabase.auth.getSession();
     if (!session.session) {
       window.location.href = "/login";
       return;
     }
 
+=======
+>>>>>>> theirs
     const payload: any = {
       property_id: propertyId,
       title: title.trim(),
@@ -81,6 +84,7 @@ export default function NewRehabProjectPage() {
       target_end_date: targetEndDate || null,
     };
 
+<<<<<<< ours
     const { data: insertedProject, error: projectError } = await supabase
       .from("rehab_projects")
       .insert(payload)
@@ -105,6 +109,11 @@ export default function NewRehabProjectPage() {
     });
     if (memberError) {
       setErr(memberError.message);
+=======
+    const { error } = await supabase.from("rehab_projects").insert(payload);
+    if (error) {
+      setErr(error.message);
+>>>>>>> theirs
       setSaving(false);
       return;
     }

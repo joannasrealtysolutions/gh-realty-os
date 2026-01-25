@@ -230,7 +230,11 @@ export default function MoneyPage() {
 
     const baseSelect =
       "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)";
+<<<<<<< ours
     let txRes = (await supabase
+=======
+    let txRes = await supabase
+>>>>>>> theirs
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
@@ -247,6 +251,14 @@ export default function MoneyPage() {
           .order("date", { ascending: false })
           .limit(1000)
         ) as PostgrestSingleResponse<Tx[]>;
+      }
+    }
+
+    if (txRes.error) {
+      const msg = txRes.error.message.toLowerCase();
+      if (msg.includes("cost_tag")) {
+        setCostTagAvailable(false);
+        txRes = await supabase.from("transactions").select(baseSelect).order("date", { ascending: false }).limit(1000);
       }
     }
 

@@ -49,7 +49,11 @@ The preview script:
 - shows git status
 - optionally starts `npm run dev`
 
+<<<<<<< ours
 ## 4) Rollback options
+=======
+## 3) Rollback options
+>>>>>>> theirs
 ### Git revert
 ```bash
 git revert <commit_sha>
@@ -57,10 +61,17 @@ git push
 ```
 
 ### Vercel rollback
+<<<<<<< ours
 Open Vercel -> Deployments -> pick a previous deploy -> **Redeploy**
 
 ## 5) VS Code tasks (one click)
 Open the Command Palette -> **Tasks: Run Task** and choose:
+=======
+Open Vercel → Deployments → pick a previous deploy → **Redeploy**
+
+## 4) VS Code tasks (one click)
+Open the Command Palette → **Tasks: Run Task** and choose:
+>>>>>>> theirs
 - Deploy (safe)
 - Preview (safe)
 - Revert last deploy (safe)
