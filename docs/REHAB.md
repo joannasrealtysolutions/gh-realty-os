@@ -42,3 +42,11 @@ EXISTS (
 ```
 
 This ensures contractors can only see projects they are members of.
+## 5) Edit / Delete from the site
+
+The rehab detail page now ships controls to edit the project metadata (title, status, budget, start/target dates) and to delete it entirely without touching Supabase:
+
+1. Update any field in the “Project details” card and click **Save project**. That calls `PATCH /api/rehab/projects/{projectId}`, which verifies your membership and applies the changes via the service role key.
+2. Use **Delete project** to remove the rehab plus all related tasks/notes/photos/members. The API runs with your session token, validates membership, and cascades deletes under the hood before removing the row from `rehab_projects`.
+
+These routes depend on the `rehab_members` table, so make sure the SQL from step 1 is in place and the service-role env var is configured locally and in Vercel.

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
 type Project = {
@@ -44,6 +44,8 @@ type Member = {
   role: string | null;
 };
 
+const STATUS_OPTIONS = ["Todo", "Doing", "Waiting", "Done"];
+
 function money(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -68,6 +70,12 @@ export default function RehabDetailPage() {
   const [memberError, setMemberError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBudget, setEditBudget] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editTargetEndDate, setEditTargetEndDate] = useState("");
+  const router = useRouter();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +109,11 @@ export default function RehabDetailPage() {
     const p = pr.data as Project;
     setProject(p);
     await loadMembers(p.id);
+    setEditTitle(p.title);
+    setEditBudget(p.budget_target != null ? String(p.budget_target) : "");
+    setEditStatus(p.status);
+    setEditStartDate(p.start_date ?? "");
+    setEditTargetEndDate(p.target_end_date ?? "");
 
     const tRes = await supabase.from("rehab_tasks").select("id,title,status,due_date,cost_est").eq("project_id", p.id).order("created_at", { ascending: false });
     setTasks((tRes.data ?? []) as Task[]);
@@ -341,6 +354,81 @@ export default function RehabDetailPage() {
     else window.open(data.signedUrl, "_blank");
   }
 
+  async function saveProjectDetails() {
+    if (!project) return;
+    const budgetValue = editBudget.trim() ? Number(editBudget) : null;
+    if (editBudget.trim() && Number.isNaN(budgetValue)) {
+      setMemberError("Budget must be a number.");
+      return;
+    }
+
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const res = await fetch(`/api/rehab/projects/${project.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${s.session.access_token}`,
+        },
+        body: JSON.stringify({
+          title: editTitle,
+          status: editStatus,
+          budget_target: budgetValue,
+          start_date: editStartDate || null,
+          target_end_date: editTargetEndDate || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Failed to save project.");
+      }
+
+      await load();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMemberError(message);
+    }
+  }
+
+  async function deleteProject() {
+    if (!project) return;
+    const ok = window.confirm(
+      "Delete this rehab project? This will remove the project and all related tasks, notes, photos, and member assignments."
+    );
+    if (!ok) return;
+
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const res = await fetch(`/api/rehab/projects/${project.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${s.session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Failed to delete project.");
+      }
+
+      router.push("/rehab");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMemberError(message);
+    }
+  }
+
   if (loading) return <p className="py-6 text-slate-300">Loading...</p>;
   if (err) return <p className="py-6 text-red-400">{err}</p>;
   if (!project) return <p className="py-6 text-slate-300">No project found for this property.</p>;
@@ -365,6 +453,72 @@ export default function RehabDetailPage() {
           </button>
         </div>
       </div>
+
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+        <h2 className="text-lg font-semibold text-slate-100">Project details</h2>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <label className="text-sm text-slate-300">Title</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Status</label>
+            <select
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editStatus}
+              onChange={(e) => setEditStatus(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status} className="bg-slate-950">
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Budget target</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editBudget}
+              onChange={(e) => setEditBudget(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Start date</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-300">Target end date</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+              value={editTargetEndDate}
+              onChange={(e) => setEditTargetEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button className="rounded-xl bg-white text-black px-4 py-2" onClick={saveProjectDetails}>
+            Save project
+          </button>
+          <button
+            className="rounded-xl border border-rose-600 text-rose-200 px-4 py-2 hover:text-white"
+            onClick={deleteProject}
+          >
+            Delete project
+          </button>
+        </div>
+        {memberError && <p className="mt-2 text-xs text-rose-400">{memberError}</p>}
+      </section>
 
       <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
         <div className="flex items-start justify-between gap-4">
