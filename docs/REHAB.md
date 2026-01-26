@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS rehab_members (
 );
 ```
 
+If your schema already added a legacy `project_id` column (from earlier versions of this guide), drop it now so the table only relies on the documented `rehab_project_id` reference:
+
+```sql
+ALTER TABLE rehab_members DROP COLUMN IF EXISTS project_id;
+```
+
 If you already had a different shape for the join table, make sure the column names above match the ones used by the API routes (`rehab_project_id`, `user_id`, `role`).
 
 ## 2) Automatic member creation
