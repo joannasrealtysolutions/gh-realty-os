@@ -75,6 +75,7 @@ export async function POST(req: Request) {
   }
 
   const { error: memberError } = await admin.from("rehab_members").insert({
+    project_id: insertedProject.id,
     rehab_project_id: insertedProject.id,
     user_id: data.user.id,
     role: "owner",

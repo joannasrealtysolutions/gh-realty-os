@@ -17,13 +17,13 @@ CREATE TABLE IF NOT EXISTS rehab_members (
 );
 ```
 
-If your schema already added a legacy `project_id` column (from earlier versions of this guide), drop it now so the table only relies on the documented `rehab_project_id` reference:
+If your schema already added a legacy `project_id` column (from earlier versions of this guide), keep it around until the dependent RLS policies are updated to use `rehab_project_id`. Once each policy switches to `rehab_project_id` you can drop the column with:
 
 ```sql
-ALTER TABLE rehab_members DROP COLUMN IF EXISTS project_id;
+ALTER TABLE rehab_members DROP COLUMN IF EXISTS project_id CASCADE;
 ```
 
-If you already had a different shape for the join table, make sure the column names above match the ones used by the API routes (`rehab_project_id`, `user_id`, `role`).
+Updating the policies usually means replacing every `rehab_members.project_id` reference with `rehab_members.rehab_project_id` so the `rehab_projects`, `rehab_tasks`, `rehab_notes`, and `rehab_photos` policies continue working before you remove the column. Alternatively, keep both columns for now and insert values into `project_id` as well (see `app/api/rehab/projects/route.ts`).
 
 ## 2) Automatic member creation
 
