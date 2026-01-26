@@ -45,15 +45,21 @@ async function ensureProjectAccess(projectId: string, userId: string) {
   return { ok: true };
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-) {
+type ProjectContext = {
+  params: Promise<{ projectId: string }>;
+};
+
+async function resolveProjectId(context: ProjectContext) {
+  const resolved = await context.params;
+  return resolved?.projectId;
+}
+
+export async function PATCH(req: NextRequest, context: ProjectContext) {
   if (!admin) {
     return NextResponse.json({ error: "Server missing Supabase configuration." }, { status: 500 });
   }
 
-  const projectId = params?.projectId;
+  const projectId = await resolveProjectId(context);
   if (!projectId) {
     return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
   }
@@ -101,15 +107,12 @@ export async function PATCH(
   return NextResponse.json({ ok: true, project: data });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-) {
+export async function DELETE(req: NextRequest, context: ProjectContext) {
   if (!admin) {
     return NextResponse.json({ error: "Server missing Supabase configuration." }, { status: 500 });
   }
 
-  const projectId = params?.projectId;
+  const projectId = await resolveProjectId(context);
   if (!projectId) {
     return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
   }
