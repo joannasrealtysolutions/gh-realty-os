@@ -507,14 +507,6 @@ export default function ContractorProjectPage() {
   );
 }
 
-function Card({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="text-sm text-slate-300">{label}</div>
-      <div className="text-2xl font-semibold mt-1">{value}</div>
-    </div>
-  );
-}
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
