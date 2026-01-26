@@ -71,6 +71,7 @@ git push
 Open Vercel → Deployments → pick a previous deploy → **Redeploy**
 
 ## 5) VS Code tasks (one click)
+
 Open the Command Palette → **Tasks: Run Task** and choose:
 - Deploy (safe)
 - Preview (safe)
@@ -93,9 +94,10 @@ Open the Command Palette → **Tasks: Run Task** and choose:
    ```
 
 ## 7) Supabase setup needed for new Money/Closing Costs features
+
 Add the environment variables locally (see step 1) and in Vercel.
 
-Run this once in Supabase SQL editor to add the optional tag:
+Run this once in the Supabase SQL editor to add the optional tag:
 ```sql
 ALTER TABLE transactions ADD COLUMN cost_tag text;
 ```
@@ -105,3 +107,25 @@ Create the storage buckets referenced by the app (Supabase → Storage):
 - `rehab-photos`
 
 Supply the service-role key as `SUPABASE_SERVICE_ROLE_KEY` (server-only) so the `/api/rehab/projects` route can insert rehab projects while row-level security is enabled.
+
+## 8) Vercel build error: "Property 'id' does not exist on type '{ user: User; }'"
+If Vercel fails during `next build` with:
+```
+Property 'id' does not exist on type '{ user: User; }'
+```
+it usually means the route is using the wrong shape for `admin.auth.getUser(...)`.
+
+**Fix in your route file** (example: `app/api/rehab/projects/route.ts`):
+```ts
+const { data, error } = await admin.auth.getUser(token);
+if (error || !data.user?.id) {
+  return NextResponse.json({ error: "Unable to verify your identity." }, { status: 401 });
+}
+```
+
+If your code currently does this:
+```ts
+const { data: user } = await admin.auth.getUser(token);
+if (!user?.id) { ... }
+```
+change it to use `data.user?.id` instead, because `data` is `{ user }`, not the user itself.

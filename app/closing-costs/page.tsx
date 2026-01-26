@@ -63,7 +63,7 @@ export default function ClosingCostsPage() {
       return;
     }
 
-    setRows(txRes.data ?? []);
+    setRows((txRes.data as Tx[]) ?? []);
     setLoading(false);
   }, []);
 

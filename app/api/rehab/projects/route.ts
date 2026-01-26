@@ -36,10 +36,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing authorization token." }, { status: 401 });
   }
 
-  const { data: user, error: userError } = await admin.auth.getUser(token);
-  if (userError || !user?.id) {
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data.user?.id) {
     return NextResponse.json(
-      { error: userError?.message ?? "Unable to verify your identity." },
+      { error: error?.message ?? "Unable to verify your identity." },
       { status: 401 }
     );
   }
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
   const { error: memberError } = await admin.from("rehab_members").insert({
     rehab_project_id: insertedProject.id,
-    user_id: user.id,
+    user_id: data.user.id,
   });
 
   if (memberError) {

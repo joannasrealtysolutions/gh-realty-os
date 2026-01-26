@@ -259,7 +259,7 @@ export default function MoneyPage() {
       return;
     }
 
-    setRows(txRes.data ?? []);
+    setRows((txRes.data as Tx[]) ?? []);
     setSelectedTxIds([]);
 
     // rehab budgets view

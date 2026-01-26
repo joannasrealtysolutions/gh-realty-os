@@ -73,7 +73,14 @@ export default function NewRehabProjectPage() {
       return;
     }
 
-    const payload = {
+    const payload: {
+      property_id: string;
+      title: string;
+      status: string;
+      budget_target: number | null;
+      start_date: string | null;
+      target_end_date: string | null;
+    } = {
       property_id: propertyId,
       title: title.trim(),
       status,

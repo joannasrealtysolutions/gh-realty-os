@@ -114,7 +114,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="border-t border-slate-800 hover:bg-slate-900/60">
-      <td className="p-3 text-slate-200">{r.properties?.[0]?.address ?? "-"}</td>
+              <td className="p-3 text-slate-200">{r.properties?.[0]?.address ?? "-"}</td>
               <td className="p-3 text-slate-200">{r.title}</td>
               <td className="p-3 text-slate-200">{r.status}</td>
               <td className="p-3 text-right text-slate-200">{r.budget_target != null ? `$${money(Number(r.budget_target))}` : "-"}</td>
