@@ -273,8 +273,9 @@ export default function RehabDetailPage() {
       if (error) throw new Error(error.message);
 
       load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
     } finally {
       setUploading(false);
     }
