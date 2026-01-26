@@ -18,7 +18,7 @@ type Tx = {
   date: string;
   type: "income" | "expense";
   amount: number;
-  properties?: { address: string } | null;
+  properties?: { address: string }[] | null;
 };
 
 const PORTFOLIO_STATUSES = new Set(["Owned", "Under Contract", "Closing", "Rented", "Rehab"]);
@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
     const nextProps = ((pRes.data as TrackerRow[]) ?? []);
     setProps(nextProps);
-    setTx(((tRes.data as Tx[]) ?? []));
+    setTx((tRes.data as Tx[]) ?? []);
     setLoading(false);
 
     // initialize selection if empty
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                 {tx.map((t) => (
                   <div key={t.id} className="flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
                     <div className="text-slate-200">
-                      <div className="font-medium">{t.properties?.address ?? "-"}</div>
+                      <div className="font-medium">{t.properties?.[0]?.address ?? "-"}</div>
                       <div className="text-slate-400">
                         {t.date} • {t.type}
                       </div>

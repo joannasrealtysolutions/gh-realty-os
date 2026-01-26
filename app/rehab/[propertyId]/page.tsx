@@ -14,7 +14,7 @@ type Project = {
   budget_locked: boolean;
   start_date: string | null;
   target_end_date: string | null;
-  properties?: { address: string } | null;
+  properties?: { address: string }[] | null;
 };
 
 type Task = {
@@ -245,42 +245,6 @@ export default function RehabDetailPage() {
     }
   }
 
-  async function uploadInvoice(file: File) {
-    if (!project) return;
-
-    const { data: s } = await supabase.auth.getSession();
-    const uid = s.session?.user?.id;
-    if (!uid) return;
-
-    setUploading(true);
-    try {
-      const path = `${project.property_id}/invoice_${Date.now()}_${file.name}`.replace(/\s+/g, "_");
-
-      const up = await supabase.storage.from("rehab-photos").upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-      if (up.error) throw new Error(up.error.message);
-
-      const { error } = await supabase.from("rehab_photos").insert({
-        project_id: project.id,
-        author_user_id: uid,
-        storage_path: path,
-        caption: `Invoice: ${file.name}`,
-      });
-
-      if (error) throw new Error(error.message);
-
-      load();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      alert(message);
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function openPhoto(path: string) {
     const { data, error } = await supabase.storage.from("rehab-photos").createSignedUrl(path, 60);
     if (error) alert(error.message);
@@ -295,7 +259,7 @@ export default function RehabDetailPage() {
     <main className="py-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold">{project.properties?.address ?? "Rehab Project"}</h1>
+          <h1 className="text-2xl font-semibold">{project.properties?.[0]?.address ?? "Rehab Project"}</h1>
           <p className="text-sm text-slate-300 mt-1">
             Project: <span className="text-slate-100">{project.title}</span> • Status:{" "}
             <span className="text-slate-100">{project.status}</span>
