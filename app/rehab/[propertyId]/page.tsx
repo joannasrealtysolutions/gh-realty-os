@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -38,6 +38,12 @@ type Photo = {
   created_at: string;
 };
 
+type Member = {
+  user_id: string;
+  email: string | null;
+  role: string | null;
+};
+
 function money(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -57,6 +63,11 @@ export default function RehabDetailPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newNote, setNewNote] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,6 +100,7 @@ export default function RehabDetailPage() {
 
     const p = pr.data as Project;
     setProject(p);
+    await loadMembers(p.id);
 
     const tRes = await supabase.from("rehab_tasks").select("id,title,status,due_date,cost_est").eq("project_id", p.id).order("created_at", { ascending: false });
     setTasks((tRes.data ?? []) as Task[]);
@@ -101,6 +113,84 @@ export default function RehabDetailPage() {
 
     setLoading(false);
   }, [propertyId]);
+
+  async function loadMembers(projectId: string) {
+    setMemberLoading(true);
+    setMemberError(null);
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const url = `/api/rehab/members?project_id=${encodeURIComponent(projectId)}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${s.session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Unable to load members.");
+      }
+
+      const data = await res.json();
+      setMembers((data.members ?? []) as Member[]);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMemberError(message);
+    } finally {
+      setMemberLoading(false);
+    }
+  }
+
+  async function handleAddMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const email = inviteEmail.trim();
+    if (!email) {
+      setMemberError("Email is required to invite a contractor.");
+      return;
+    }
+
+    setMemberError(null);
+    setInviteBusy(true);
+
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const res = await fetch("/api/rehab/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${s.session.access_token}`,
+        },
+        body: JSON.stringify({
+          project_id: project.id,
+          email: email.toLowerCase(),
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Failed to add member.");
+      }
+
+      setInviteEmail("");
+      await loadMembers(project.id);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMemberError(message);
+    } finally {
+      setInviteBusy(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -275,6 +365,56 @@ export default function RehabDetailPage() {
           </button>
         </div>
       </div>
+
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">Project team</h2>
+            <p className="text-xs text-slate-400">Contractors and owners with access to this rehab.</p>
+          </div>
+          <div className="text-xs text-slate-400">{members.length} member{members.length === 1 ? "" : "s"}</div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {memberLoading && (
+            <p className="text-sm text-slate-400">Loading members…</p>
+          )}
+          {!memberLoading && members.length === 0 && (
+            <p className="text-sm text-slate-400">No members added yet.</p>
+          )}
+          {!memberLoading && members.length > 0 && (
+            <div className="space-y-2 md:col-span-2">
+              {members.map((member) => (
+                <div key={member.user_id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+                  <div>
+                    <div className="text-slate-100">{member.email ?? member.user_id}</div>
+                    <div className="text-xs text-slate-500">{member.role ?? "contractor"}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <form className="mt-4 flex flex-col gap-2" onSubmit={handleAddMember}>
+          <input
+            type="email"
+            className="rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+            placeholder="Invite contractor (email)"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="rounded-xl bg-white text-black px-4 py-2 text-sm"
+            disabled={inviteBusy}
+          >
+            {inviteBusy ? "Inviting…" : "Add contractor"}
+          </button>
+        </form>
+
+        {memberError && <p className="mt-2 text-xs text-rose-400">{memberError}</p>}
+      </section>
 
       <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card label="Todo" value={String(totals.todo)} />
