@@ -75,7 +75,7 @@ export default function EditTransactionPage() {
 
       if (!rpRes.error) setRehabProjects((rpRes.data as RehabProject[]) ?? []);
 
-      const baseSelect = "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id";
+      const baseSelect = "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,project_id";
       let tRes = await supabase
         .from("transactions")
         .select(`${baseSelect},cost_tag`)
@@ -106,7 +106,7 @@ export default function EditTransactionPage() {
         receipt_link: string | null;
         property_id: string | null;
         is_rehab: boolean | null;
-        rehab_project_id: string | null;
+        project_id: string | null;
         cost_tag?: string | null;
       };
       setDate(r.date || "");
@@ -119,7 +119,7 @@ export default function EditTransactionPage() {
       setPropertyId(r.property_id ?? "");
 
       setIsRehab(Boolean(r.is_rehab));
-      setRehabProjectId(r.rehab_project_id ?? "");
+      setRehabProjectId(r.project_id ?? "");
       setCostTag(r.cost_tag ?? "none");
 
       setLoading(false);
@@ -148,7 +148,7 @@ export default function EditTransactionPage() {
       receipt_link: string | null;
       property_id: string | null;
       is_rehab: boolean;
-      rehab_project_id: string | null;
+      project_id: string | null;
       cost_tag?: string | null;
     } = {
       date,
@@ -161,7 +161,7 @@ export default function EditTransactionPage() {
       property_id: propertyId || null,
 
       is_rehab: Boolean(isRehab),
-      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+      project_id: isRehab && rehabProjectId ? rehabProjectId : null,
     };
     if (costTagAvailable) payload.cost_tag = costTag !== "none" ? costTag : null;
 

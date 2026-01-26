@@ -35,8 +35,8 @@ async function ensureProjectAccess(projectId: string, userId: string) {
 
   const { data, error } = await admin
     .from("rehab_members")
-    .select("rehab_project_id")
-    .eq("rehab_project_id", projectId)
+    .select("project_id")
+    .eq("project_id", projectId)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -138,7 +138,7 @@ export async function DELETE(req: NextRequest, context: ProjectContext) {
   const { error: membersError } = await admin
     .from("rehab_members")
     .delete()
-    .eq("rehab_project_id", projectId);
+    .eq("project_id", projectId);
   if (membersError) {
     return NextResponse.json({ error: membersError.message }, { status: 500 });
   }

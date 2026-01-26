@@ -33,8 +33,8 @@ async function ensureProjectAccess(projectId: string, userId: string) {
   if (!admin) return { error: "Supabase admin client not configured." };
   const { data, error } = await admin
     .from("rehab_members")
-    .select("rehab_project_id")
-    .eq("rehab_project_id", projectId)
+    .select("project_id")
+    .eq("project_id", projectId)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -69,8 +69,8 @@ async function resolveUserId(options: { userId?: string; email?: string }) {
 async function fetchMembers(projectId: string) {
   const { data, error } = await admin!
     .from("rehab_members")
-    .select("rehab_project_id,user_id,role")
-    .eq("rehab_project_id", projectId)
+    .select("project_id,user_id,role")
+    .eq("project_id", projectId)
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
   const { data: existing, error: dupError } = await admin
     .from("rehab_members")
     .select("id")
-    .eq("rehab_project_id", projectId)
+    .eq("project_id", projectId)
     .eq("user_id", target.userId)
     .maybeSingle();
 
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
   }
 
   const { error: insertError } = await admin.from("rehab_members").insert({
-    rehab_project_id: projectId,
+    project_id: projectId,
     user_id: target.userId,
     role: body.role ?? "contractor",
   });

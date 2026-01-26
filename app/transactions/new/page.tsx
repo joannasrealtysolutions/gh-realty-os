@@ -91,7 +91,7 @@ export default function NewTransactionPage() {
       receipt_link: string | null;
       property_id: string | null;
       is_rehab: boolean;
-      rehab_project_id: string | null;
+      project_id: string | null;
       cost_tag?: string | null;
     } = {
       date,
@@ -103,7 +103,7 @@ export default function NewTransactionPage() {
       receipt_link: receiptLink.trim() || null,
       property_id: propertyId || null,
       is_rehab: Boolean(isRehab),
-      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+      project_id: isRehab && rehabProjectId ? rehabProjectId : null,
     };
     if (costTagAvailable) payload.cost_tag = costTag !== "none" ? costTag : null;
 

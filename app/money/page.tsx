@@ -19,7 +19,7 @@ type Tx = {
 
   // rehab fields
   is_rehab?: boolean;
-  rehab_project_id?: string | null;
+  project_id?: string | null;
 
   properties?: { address: string } | null;
 };
@@ -230,7 +230,7 @@ export default function MoneyPage() {
     }
 
     const baseSelect =
-      "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)";
+      "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,project_id, properties:property_id(address)";
     let txRes = (await supabase
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
@@ -425,7 +425,7 @@ export default function MoneyPage() {
       receipt_link: string | null;
       property_id: string | null;
       is_rehab: boolean;
-      rehab_project_id: string | null;
+            project_id: string | null;
       cost_tag?: string | null;
     } = {
       date,
@@ -438,7 +438,7 @@ export default function MoneyPage() {
       property_id: propertyId || null,
 
       is_rehab: Boolean(isRehab),
-      rehab_project_id: isRehab && rehabProjectId ? rehabProjectId : null,
+      project_id: isRehab && rehabProjectId ? rehabProjectId : null,
     };
     if (costTagAvailable) {
       payload.cost_tag = costTag !== "none" ? costTag : null;
@@ -538,7 +538,7 @@ export default function MoneyPage() {
           receipt_link: null,
           property_id: null,
           is_rehab: false,
-          rehab_project_id: null,
+          project_id: null,
           properties: null,
         });
       }
@@ -596,7 +596,7 @@ export default function MoneyPage() {
           receipt_link: c.receipt_link,
           property_id: c.property_id,
           is_rehab: false,
-          rehab_project_id: null,
+          project_id: null,
         }));
 
         const ins = await supabase.from("transactions").insert(chunk);

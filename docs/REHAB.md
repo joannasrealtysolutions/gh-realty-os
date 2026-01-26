@@ -4,26 +4,20 @@ This repo ships a rehab experience that now manages contractor access automatica
 
 ## 1) Rehab members table
 
-Run this in the Supabase SQL editor (or via your migration workflow) so the app can record which Supabase users are tied to each rehab project. The `route.ts` API routes rely on the `rehab_project_id` <-> `user_id` link.
+Run this in the Supabase SQL editor (or via your migration workflow) so the app can record which Supabase users are tied to each rehab project. The `route.ts` API routes rely on the `project_id` <-> `user_id` link.
 
 ```sql
 CREATE TABLE IF NOT EXISTS rehab_members (
   id uuid GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  rehab_project_id uuid NOT NULL REFERENCES rehab_projects(id),
+  project_id uuid NOT NULL REFERENCES rehab_projects(id),
   user_id uuid NOT NULL REFERENCES auth.users(id),
   role text NOT NULL DEFAULT 'contractor',
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (rehab_project_id, user_id)
+  UNIQUE (project_id, user_id)
 );
 ```
 
-If your schema already added a legacy `project_id` column (from earlier versions of this guide), keep it around until the dependent RLS policies are updated to use `rehab_project_id`. Once each policy switches to `rehab_project_id` you can drop the column with:
-
-```sql
-ALTER TABLE rehab_members DROP COLUMN IF EXISTS project_id CASCADE;
-```
-
-Updating the policies usually means replacing every `rehab_members.project_id` reference with `rehab_members.rehab_project_id` so the `rehab_projects`, `rehab_tasks`, `rehab_notes`, and `rehab_photos` policies continue working before you remove the column. Alternatively, keep both columns for now and insert values into `project_id` as well (see `app/api/rehab/projects/route.ts`).
+If you already have a different column name for the join table, make sure the policy expressions below reference that name (`project_id` in the example) so the app’s API routes align with what Supabase stores.
 
 ## 2) Automatic member creation
 
@@ -42,7 +36,7 @@ Your Supabase policies should gate access to `rehab_projects`, `rehab_tasks`, `r
 ```sql
 EXISTS (
   SELECT 1 FROM rehab_members rm
-  WHERE rm.rehab_project_id = rehab_projects.id
+  WHERE rm.project_id = rehab_projects.id
     AND rm.user_id = auth.uid()
 )
 ```
