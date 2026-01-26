@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -46,8 +47,8 @@ const inputCls =
 const selectCls =
   "mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100";
 
-function money2(n: any) {
-  const x = Number(n);
+function money2(n: number | string | null | undefined) {
+  const x = Number(n ?? 0);
   if (!Number.isFinite(x)) return "-";
   return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -213,12 +214,12 @@ export default function MoneyPage() {
   const topInnerRef = useRef<HTMLDivElement | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
 
-  function syncTopWidth() {
+  const syncTopWidth = useCallback(() => {
     const tableW = tableRef.current?.scrollWidth ?? 1200;
     if (topInnerRef.current) topInnerRef.current.style.width = `${tableW}px`;
-  }
+  }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
 
@@ -230,11 +231,7 @@ export default function MoneyPage() {
 
     const baseSelect =
       "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id, properties:property_id(address)";
-<<<<<<< ours
     let txRes = (await supabase
-=======
-    let txRes = await supabase
->>>>>>> theirs
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
@@ -255,14 +252,6 @@ export default function MoneyPage() {
     }
 
     if (txRes.error) {
-      const msg = txRes.error.message.toLowerCase();
-      if (msg.includes("cost_tag")) {
-        setCostTagAvailable(false);
-        txRes = await supabase.from("transactions").select(baseSelect).order("date", { ascending: false }).limit(1000);
-      }
-    }
-
-    if (txRes.error) {
       setErr(txRes.error.message);
       setRows([]);
       setSelectedTxIds([]);
@@ -270,17 +259,17 @@ export default function MoneyPage() {
       return;
     }
 
-    setRows((txRes.data as any) ?? []);
+    setRows(txRes.data ?? []);
     setSelectedTxIds([]);
 
     // rehab budgets view
     const bRes = await supabase
       .from("v_rehab_budget")
       .select("project_id,property_id,title,status,budget_target,rehab_spent_total,rehab_budget_remaining")
-      .order("created_at", { ascending: false } as any);
+      .order("created_at", { ascending: false });
 
     if (!bRes.error) {
-      setRehabBudgets((bRes.data as any) ?? []);
+      setRehabBudgets((bRes.data as RehabBudgetRow[]) ?? []);
     }
 
     // rehab projects (for dropdown)
@@ -290,28 +279,26 @@ export default function MoneyPage() {
       .order("created_at", { ascending: false });
 
     if (!pRes.error) {
-      setRehabProjects((pRes.data as any) ?? []);
+      setRehabProjects((pRes.data as RehabProject[]) ?? []);
     }
 
     setLoading(false);
 
     // allow layout settle then measure
     setTimeout(syncTopWidth, 0);
-  }
+  }, [syncTopWidth]);
 
   useEffect(() => {
     load();
     const onResize = () => syncTopWidth();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load, syncTopWidth]);
 
   // keep top scrollbar width in sync if rows change
   useEffect(() => {
     syncTopWidth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length]);
+  }, [rows.length, syncTopWidth]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -413,8 +400,9 @@ export default function MoneyPage() {
       if (error) throw new Error(error.message);
 
       await load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
     }
   }
 
@@ -427,7 +415,19 @@ export default function MoneyPage() {
     if (!category.trim()) return setErr("Category is required.");
     if (a === null) return setErr("Amount must be a number.");
 
-    const payload: any = {
+    const payload: {
+      date: string;
+      type: "income" | "expense";
+      category: string;
+      amount: number;
+      vendor: string | null;
+      description: string | null;
+      receipt_link: string | null;
+      property_id: string | null;
+      is_rehab: boolean;
+      rehab_project_id: string | null;
+      cost_tag?: string | null;
+    } = {
       date,
       type,
       category: category.trim(),
@@ -550,8 +550,22 @@ export default function MoneyPage() {
         .order("date", { ascending: false })
         .limit(2000);
 
-      const existing = (existingRes.data as any[]) ?? [];
-      const key = (x: any) =>
+      const existing = (existingRes.data as Array<{
+        date: string | null;
+        amount: number | null;
+        type: string | null;
+        vendor: string | null;
+        category: string | null;
+        description: string | null;
+      }>) ?? [];
+      const key = (x: {
+        date: string | null;
+        amount: number | null;
+        type: string | null;
+        vendor: string | null;
+        category: string | null;
+        description: string | null;
+      }) =>
         [
           String(x.date || ""),
           String(Number(x.amount || 0)),
@@ -598,8 +612,9 @@ export default function MoneyPage() {
       );
 
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setErr(message);
     }
   }
 
@@ -647,9 +662,9 @@ export default function MoneyPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
-          <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/closing-costs">
+          <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/closing-costs">
             Closing Costs
-          </a>
+          </Link>
           <input
             className="rounded-xl border border-slate-700 bg-transparent p-2 w-72 text-slate-100"
             placeholder="Search"
@@ -659,7 +674,7 @@ export default function MoneyPage() {
           <select
             className="rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as any)}
+            onChange={(e) => setTypeFilter(e.target.value as "all" | "income" | "expense")}
           >
             <option value="all" className="bg-slate-950">
               All
@@ -822,7 +837,7 @@ export default function MoneyPage() {
 
           <div>
             <label className="text-sm text-slate-300">Type</label>
-            <select className={selectCls} value={type} onChange={(e) => setType(e.target.value as any)}>
+            <select className={selectCls} value={type} onChange={(e) => setType(e.target.value as "income" | "expense")}>
               <option value="expense" className="bg-slate-950">
                 expense
               </option>
@@ -1019,12 +1034,9 @@ export default function MoneyPage() {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <a
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
-                          href={`/transactions/${r.id}/edit`}
-                        >
+                        <Link className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white" href={`/transactions/${r.id}/edit`}>
                           Edit
-                        </a>
+                        </Link>
 
                         <label className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white cursor-pointer">
                           Upload receipt

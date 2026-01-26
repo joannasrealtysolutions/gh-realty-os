@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -41,13 +42,14 @@ export default function PropertiesPage() {
       setErr(error.message);
       setRows([]);
     } else {
-      setRows((data as any) ?? []);
+      setRows((data as P[]) ?? []);
     }
 
     setLoading(false);
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
@@ -68,9 +70,9 @@ export default function PropertiesPage() {
           <h1 className="text-2xl font-semibold">Properties</h1>
           <p className="text-sm text-slate-300 mt-1">Grouped by status</p>
           <div className="mt-3">
-            <a className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
+            <Link className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
               + Add Property
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -95,14 +97,14 @@ export default function PropertiesPage() {
 
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                   {items.map((p) => (
-                    <a
+                    <Link
                       key={p.id}
                       className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 hover:bg-slate-900/60"
                       href={`/properties/${p.id}`}
                     >
                       <div className="font-medium">{p.address}</div>
                       <div className="text-sm text-slate-400 mt-1">{p.status}</div>
-                    </a>
+                    </Link>
                   ))}
 
                   {items.length === 0 && <div className="text-sm text-slate-500">No properties.</div>}

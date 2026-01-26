@@ -1,26 +1,37 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-type Row = Record<string, any>;
+type Row = {
+  property_id: string;
+  address?: string | null;
+  status?: string | null;
+  rent_est?: number | null;
+  net_cash_flow_calc?: number | null;
+  net_cash_flow_post_refi_calc?: number | null;
+  reserve_bucket_total_calc?: number | null;
+  max_heloc_budget_break_even_calc?: number | null;
+  min_refi_ltv_break_even_calc?: number | null;
+};
 
-function num(v: any) {
+function num(v: number | string | null | undefined) {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
-function money2(v: any) {
-  const x = Number(v);
+function money2(v: number | string | null | undefined) {
+  const x = Number(v ?? 0);
   if (!Number.isFinite(x)) return "-";
   return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function money0(v: any) {
-  const x = Number(v);
+function money0(v: number | string | null | undefined) {
+  const x = Number(v ?? 0);
   if (!Number.isFinite(x)) return "-";
   return x.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
-function pct(v: any) {
-  const x = Number(v);
+function pct(v: number | string | null | undefined) {
+  const x = Number(v ?? 0);
   if (!Number.isFinite(x)) return "-";
   return `${(x * 100).toFixed(1)}%`;
 }
@@ -57,7 +68,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const nextRows = (data as any) ?? [];
+    const nextRows = (data as Row[]) ?? [];
     setRows(nextRows);
 
     // initialize selection (once) from localStorage or default to all
@@ -76,7 +87,7 @@ export default function DashboardPage() {
       }
 
       // default: select all properties so totals match the table
-      return new Set(nextRows.map((r: any) => String(r.property_id)));
+      return new Set(nextRows.map((r) => String(r.property_id)));
     });
 
     setLoading(false);
@@ -138,7 +149,7 @@ export default function DashboardPage() {
     try {
       // rehab cleanup (best-effort)
       const pr = await supabase.from("rehab_projects").select("id").eq("property_id", propertyId);
-      const projectIds = ((pr.data as any) ?? []).map((x: any) => x.id);
+      const projectIds = ((pr.data as { id: string }[]) ?? []).map((x) => x.id);
 
       if (projectIds.length > 0) {
         await supabase.from("rehab_tasks").delete().in("project_id", projectIds);
@@ -165,8 +176,9 @@ export default function DashboardPage() {
       });
 
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setErr(message);
     }
   }
 
@@ -177,9 +189,9 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-sm text-slate-300 mt-1">Portfolio overview</p>
           <div className="mt-3">
-            <a className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
+            <Link className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
               + Add Property
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -247,12 +259,9 @@ export default function DashboardPage() {
                   </label>
 
                   <div className="flex items-center gap-2">
-                    <a
-                      className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
-                      href={`/properties/${id}`}
-                    >
+                    <Link className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white" href={`/properties/${id}`}>
                       Open
-                    </a>
+                    </Link>
                     <button
                       className="rounded-lg border border-red-800/60 px-2 py-1 text-red-300 hover:text-red-200"
                       onClick={() => deleteProperty(id, r.address ?? id)}
@@ -299,9 +308,9 @@ export default function DashboardPage() {
                   <td className="p-3 text-right">{money0(r.max_heloc_budget_break_even_calc)}</td>
                   <td className="p-3 text-right">{pct(r.min_refi_ltv_break_even_calc)}</td>
                   <td className="p-3">
-                    <a className="underline text-slate-200 hover:text-white" href={`/properties/${r.property_id}`}>
+                    <Link className="underline text-slate-200 hover:text-white" href={`/properties/${r.property_id}`}>
                       Details
-                    </a>
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -38,7 +39,7 @@ export default function NewRehabProjectPage() {
         return;
       }
 
-      setProps((data as any) ?? []);
+      setProps((data as PropOption[]) ?? []);
       setLoading(false);
     })();
   }, []);
@@ -66,16 +67,20 @@ export default function NewRehabProjectPage() {
       return;
     }
 
-<<<<<<< ours
     const { data: session } = await supabase.auth.getSession();
     if (!session.session) {
       window.location.href = "/login";
       return;
     }
 
-=======
->>>>>>> theirs
-    const payload: any = {
+    const payload: {
+      property_id: string;
+      title: string;
+      status: string;
+      budget_target: number | null;
+      start_date: string | null;
+      target_end_date: string | null;
+    } = {
       property_id: propertyId,
       title: title.trim(),
       status,
@@ -84,12 +89,12 @@ export default function NewRehabProjectPage() {
       target_end_date: targetEndDate || null,
     };
 
-<<<<<<< ours
     const { data: insertedProject, error: projectError } = await supabase
       .from("rehab_projects")
       .insert(payload)
       .select("id")
       .single();
+
     if (projectError || !insertedProject?.id) {
       setErr(projectError?.message ?? "Failed to create project.");
       setSaving(false);
@@ -107,13 +112,9 @@ export default function NewRehabProjectPage() {
       rehab_project_id: insertedProject.id,
       user_id: userId,
     });
+
     if (memberError) {
       setErr(memberError.message);
-=======
-    const { error } = await supabase.from("rehab_projects").insert(payload);
-    if (error) {
-      setErr(error.message);
->>>>>>> theirs
       setSaving(false);
       return;
     }
@@ -128,9 +129,9 @@ export default function NewRehabProjectPage() {
           <h1 className="text-2xl font-semibold">New Rehab Project</h1>
           <p className="text-sm text-slate-300 mt-1">Create a rehab project for a property.</p>
         </div>
-        <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/rehab">
+        <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/rehab">
           Back
-        </a>
+        </Link>
       </div>
 
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}
@@ -142,7 +143,9 @@ export default function NewRehabProjectPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Property">
                 <select className={inputCls} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
-                  <option value="" className="bg-slate-950">(Select a property)</option>
+                  <option value="" className="bg-slate-950">
+                    (Select a property)
+                  </option>
                   {props.map((p) => (
                     <option key={p.id} value={p.id} className="bg-slate-950">
                       {p.address}

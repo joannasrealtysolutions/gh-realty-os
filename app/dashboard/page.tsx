@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -62,9 +63,9 @@ export default function DashboardPage() {
     if (pRes.error) setErr(pRes.error.message);
     if (tRes.error) setErr(tRes.error.message);
 
-    const nextProps = ((pRes.data as any) ?? []) as TrackerRow[];
+    const nextProps = ((pRes.data as TrackerRow[]) ?? []);
     setProps(nextProps);
-    setTx(((tRes.data as any) ?? []) as Tx[]);
+    setTx(((tRes.data as Tx[]) ?? []));
     setLoading(false);
 
     // initialize selection if empty
@@ -121,7 +122,7 @@ export default function DashboardPage() {
   );
 
   const portfolioReserveBucketTotal = useMemo(
-    () => selectedProps.reduce((s, p) => s + Number((p as any).reserve_bucket_total_calc || 0), 0),
+    () => selectedProps.reduce((s, p) => s + Number(p.reserve_bucket_total_calc || 0), 0),
     [selectedProps]
   );
 
@@ -157,7 +158,7 @@ export default function DashboardPage() {
       // Best-effort child cleanup (safe even if cascades exist)
       // 1) rehab projects (and their children) by property_id
       const pr = await supabase.from("rehab_projects").select("id").eq("property_id", propertyId);
-      const projectIds = ((pr.data as any) ?? []).map((x: any) => x.id);
+      const projectIds = ((pr.data as { id: string }[]) ?? []).map((x) => x.id);
 
       if (projectIds.length > 0) {
         // children tables (if your FK is cascade you can ignore; deletes will just no-op)
@@ -185,8 +186,9 @@ export default function DashboardPage() {
       });
 
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setErr(message);
     }
   }
 
@@ -199,15 +201,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <a className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
+          <Link className="rounded-xl bg-white text-black px-3 py-2" href="/properties/new">
             + New Property
-          </a>
-          <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/properties">
+          </Link>
+          <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/properties">
             Properties
-          </a>
-          <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
+          </Link>
+          <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
             Money
-          </a>
+          </Link>
           <button
             className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white"
             onClick={load}
@@ -287,12 +289,9 @@ export default function DashboardPage() {
                       </label>
 
                       <div className="flex items-center gap-2">
-                        <a
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white"
-                          href={`/properties/${p.property_id}`}
-                        >
+                        <Link className="rounded-lg border border-slate-700 px-2 py-1 text-slate-200 hover:text-white" href={`/properties/${p.property_id}`}>
                           Open
-                        </a>
+                        </Link>
                         <button
                           className="rounded-lg border border-red-800/60 px-2 py-1 text-red-300 hover:text-red-200"
                           onClick={() => deleteProperty(p.property_id, p.address)}
@@ -333,15 +332,15 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
               <h2 className="font-semibold">Quick Actions</h2>
               <div className="mt-4 flex flex-col gap-2">
-                <a className="rounded-xl bg-white text-black px-4 py-2" href="/properties">
+                <Link className="rounded-xl bg-white text-black px-4 py-2" href="/properties">
                   Review Properties
-                </a>
-                <a className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white" href="/properties/new">
+                </Link>
+                <Link className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white" href="/properties/new">
                   Add New Property
-                </a>
-                <a className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white" href="/transactions/new">
+                </Link>
+                <Link className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white" href="/transactions/new">
                   Add Transaction
-                </a>
+                </Link>
               </div>
             </div>
           </div>

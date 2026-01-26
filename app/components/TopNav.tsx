@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -38,23 +39,23 @@ export default function TopNav() {
 
   return (
     <header className="py-6 flex items-center justify-between">
-      <a href="/" className="font-semibold tracking-tight">
-        Joanna's Realty Solutions OS
-      </a>
+      <Link href="/" className="font-semibold tracking-tight">
+        Joanna&apos;s Realty Solutions OS
+      </Link>
 
       <nav className="flex items-center gap-3 text-sm">
-        <a className="text-slate-200 hover:text-white" href="/properties">
+        <Link className="text-slate-200 hover:text-white" href="/properties">
           Properties
-        </a>
-        <a className="text-slate-200 hover:text-white" href="/money">
+        </Link>
+        <Link className="text-slate-200 hover:text-white" href="/money">
           Money
-        </a>
-        <a className="text-slate-200 hover:text-white" href="/closing-costs">
+        </Link>
+        <Link className="text-slate-200 hover:text-white" href="/closing-costs">
           Closing Costs
-        </a>
-        <a className="text-slate-200 hover:text-white" href="/rehab">
+        </Link>
+        <Link className="text-slate-200 hover:text-white" href="/rehab">
           Rehab
-        </a>
+        </Link>
 
         {/* Keep logout separate so it never affects your routes */}
         {!loading && signedIn && (

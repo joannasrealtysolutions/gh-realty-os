@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -42,13 +43,14 @@ export default function RehabPage() {
       setErr(error.message);
       setRows([]);
     } else {
-      setRows((data as any) ?? []);
+      setRows((data as Row[]) ?? []);
     }
 
     setLoading(false);
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
@@ -65,12 +67,9 @@ export default function RehabPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <a
-            className="rounded-xl bg-white text-black px-3 py-2 text-sm"
-            href="/rehab/new"
-          >
+          <Link className="rounded-xl bg-white text-black px-3 py-2 text-sm" href="/rehab/new">
             + New Rehab Project
-          </a>
+          </Link>
           <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
             Refresh
           </button>
@@ -120,9 +119,9 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
               <td className="p-3 text-slate-200">{r.status}</td>
               <td className="p-3 text-right text-slate-200">{r.budget_target != null ? `$${money(Number(r.budget_target))}` : "-"}</td>
               <td className="p-3">
-                <a className="underline text-slate-200 hover:text-white" href={`/rehab/${r.property_id}`}>
+                <Link className="underline text-slate-200 hover:text-white" href={`/rehab/${r.property_id}`}>
                   Open
-                </a>
+                </Link>
               </td>
             </tr>
           ))}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -92,7 +93,7 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
 
@@ -112,16 +113,17 @@ export default function PropertyDetailPage() {
       setErr(error.message);
       setRow(null);
     } else {
-      setRow((data as any) ?? null);
+      setRow((data as TrackerRow) ?? null);
     }
 
     setLoading(false);
-  }
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-  }, [id]);
+  }, [id, load]);
 
   const isPortfolio = useMemo(() => (row ? PORTFOLIO_STATUSES.has(row.status) : false), [row]);
 
@@ -140,12 +142,12 @@ export default function PropertyDetailPage() {
           <button className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" onClick={load}>
             Refresh
           </button>
-          <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/properties">
+          <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/properties">
             Back
-          </a>
-          <a className="rounded-xl bg-white text-black px-3 py-2" href={`/properties/${id}/edit`}>
+          </Link>
+          <Link className="rounded-xl bg-white text-black px-3 py-2" href={`/properties/${id}/edit`}>
             Edit Inputs
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -167,9 +169,9 @@ export default function PropertyDetailPage() {
                 <h2 className="text-lg font-semibold">Inputs Snapshot</h2>
                 <p className="text-sm text-slate-400 mt-1">Quick view only — edit on the Edit page.</p>
               </div>
-              <a className="underline text-slate-200 hover:text-white" href={`/properties/${id}/edit`}>
+              <Link className="underline text-slate-200 hover:text-white" href={`/properties/${id}/edit`}>
                 Edit →
-              </a>
+              </Link>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -402,7 +404,7 @@ function Divider() {
   return <div className="my-3 border-t border-slate-800" />;
 }
 
-function Info({ label, value }: { label: string; value: any }) {
+function Info({ label, value }: { label: string; value: string | number | null }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
       <div className="text-xs text-slate-400">{label}</div>

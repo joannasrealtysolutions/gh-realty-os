@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../../lib/supabaseClient";
@@ -65,14 +66,14 @@ export default function EditTransactionPage() {
         setLoading(false);
         return;
       }
-      setProps((pRes.data as any) ?? []);
+      setProps((pRes.data as PropOption[]) ?? []);
 
       const rpRes = await supabase
         .from("rehab_projects")
         .select("id,title,status")
         .order("created_at", { ascending: false });
 
-      if (!rpRes.error) setRehabProjects((rpRes.data as any) ?? []);
+      if (!rpRes.error) setRehabProjects((rpRes.data as RehabProject[]) ?? []);
 
       const baseSelect = "id,date,type,category,amount,vendor,description,receipt_link,property_id,is_rehab,rehab_project_id";
       let tRes = await supabase
@@ -95,7 +96,19 @@ export default function EditTransactionPage() {
         return;
       }
 
-      const r: any = tRes.data;
+      const r = tRes.data as {
+        date: string | null;
+        type: "income" | "expense";
+        category: string | null;
+        amount: number | null;
+        vendor: string | null;
+        description: string | null;
+        receipt_link: string | null;
+        property_id: string | null;
+        is_rehab: boolean | null;
+        rehab_project_id: string | null;
+        cost_tag?: string | null;
+      };
       setDate(r.date || "");
       setType(r.type);
       setCategory(r.category || CATEGORIES[0]);
@@ -125,7 +138,19 @@ export default function EditTransactionPage() {
       return;
     }
 
-    const payload: any = {
+    const payload: {
+      date: string;
+      type: "income" | "expense";
+      category: string;
+      amount: number;
+      vendor: string | null;
+      description: string | null;
+      receipt_link: string | null;
+      property_id: string | null;
+      is_rehab: boolean;
+      rehab_project_id: string | null;
+      cost_tag?: string | null;
+    } = {
       date,
       type,
       category,
@@ -158,9 +183,9 @@ export default function EditTransactionPage() {
           <h1 className="text-2xl font-semibold">Edit Transaction</h1>
           <p className="text-sm text-slate-300 mt-1">{id}</p>
         </div>
-        <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
+        <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
           Back
-        </a>
+        </Link>
       </div>
 
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}
@@ -184,7 +209,7 @@ export default function EditTransactionPage() {
               </Field>
 
               <Field label="Type">
-                <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as any)}>
+                <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as "income" | "expense")}>
                   <option value="income" className="bg-slate-950">income</option>
                   <option value="expense" className="bg-slate-950">expense</option>
                 </select>

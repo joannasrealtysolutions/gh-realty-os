@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../../lib/supabaseClient";
 
@@ -60,7 +61,7 @@ export default function ContractorProjectPage() {
   const [editStartDate, setEditStartDate] = useState("");
   const [editTargetEndDate, setEditTargetEndDate] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
 
@@ -82,7 +83,13 @@ export default function ContractorProjectPage() {
       return;
     }
 
-    const p = pr.data as any as Project;
+    if (!pr.data) {
+      setErr("Project not found.");
+      setLoading(false);
+      return;
+    }
+
+    const p = pr.data as Project;
     setProject(p);
     setEditStatus(p.status);
     setEditStartDate(p.start_date ?? "");
@@ -94,7 +101,7 @@ export default function ContractorProjectPage() {
       .eq("project_id", p.id)
       .order("created_at", { ascending: false });
 
-    setTasks(((tRes.data as any) ?? []) as Task[]);
+    setTasks((tRes.data ?? []) as Task[]);
 
     const nRes = await supabase
       .from("rehab_notes")
@@ -102,7 +109,7 @@ export default function ContractorProjectPage() {
       .eq("project_id", p.id)
       .order("created_at", { ascending: false });
 
-    setNotes(((nRes.data as any) ?? []) as Note[]);
+    setNotes((nRes.data ?? []) as Note[]);
 
     const phRes = await supabase
       .from("rehab_photos")
@@ -110,15 +117,14 @@ export default function ContractorProjectPage() {
       .eq("project_id", p.id)
       .order("created_at", { ascending: false });
 
-    setPhotos(((phRes.data as any) ?? []) as Photo[]);
+    setPhotos((phRes.data ?? []) as Photo[]);
 
     setLoading(false);
-  }
+  }, [projectId]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [load]);
 
   const totals = useMemo(() => {
     let todo = 0,
@@ -225,8 +231,9 @@ export default function ContractorProjectPage() {
       if (error) throw new Error(error.message);
 
       load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -260,8 +267,9 @@ export default function ContractorProjectPage() {
       if (error) throw new Error(error.message);
 
       load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -310,9 +318,9 @@ export default function ContractorProjectPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <a className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" href="/contractor">
+          <Link className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" href="/contractor">
             Back
-          </a>
+          </Link>
           <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
             Refresh
           </button>

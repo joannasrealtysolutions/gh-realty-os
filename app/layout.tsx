@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
 
           <footer className="py-10 text-xs text-slate-500">
-            © {new Date().getFullYear()} Joanna's Realty Solutions LLC
+            © {new Date().getFullYear()} Joanna&apos;s Realty Solutions LLC
           </footer>
         </div>
       </body>

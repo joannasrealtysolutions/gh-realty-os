@@ -13,11 +13,21 @@ NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
+**PowerShell note:** run scripts from the repo root with the dot-slash prefix:
+```powershell
+.\scripts\preview.ps1
+```
+If you see “not recognized,” confirm you are in the repo root:
+```powershell
+Get-Location
+dir scripts
+```
+
 ## 2) Safe deploy script (recommended)
 
 ### Windows PowerShell
 ```powershell
-scripts\deploy.ps1 -Message "Describe the change"
+.\scripts\deploy.ps1 -Message "Describe the change"
 ```
 
 ### macOS/Linux (bash)
@@ -36,7 +46,7 @@ Both scripts:
 
 ### Windows PowerShell
 ```powershell
-scripts\preview.ps1
+.\scripts\preview.ps1
 ```
 
 ### macOS/Linux (bash)
@@ -49,11 +59,8 @@ The preview script:
 - shows git status
 - optionally starts `npm run dev`
 
-<<<<<<< ours
 ## 4) Rollback options
-=======
-## 3) Rollback options
->>>>>>> theirs
+
 ### Git revert
 ```bash
 git revert <commit_sha>
@@ -61,17 +68,38 @@ git push
 ```
 
 ### Vercel rollback
-<<<<<<< ours
-Open Vercel -> Deployments -> pick a previous deploy -> **Redeploy**
-
-## 5) VS Code tasks (one click)
-Open the Command Palette -> **Tasks: Run Task** and choose:
-=======
 Open Vercel → Deployments → pick a previous deploy → **Redeploy**
 
-## 4) VS Code tasks (one click)
+## 5) VS Code tasks (one click)
 Open the Command Palette → **Tasks: Run Task** and choose:
->>>>>>> theirs
 - Deploy (safe)
 - Preview (safe)
 - Revert last deploy (safe)
+
+## 6) If you hit merge conflicts (step-by-step)
+1. Open the file shown by `git status` and search for conflict markers:
+   - `<<<<<<<`
+   - `=======`
+   - `>>>>>>>`
+2. Keep the intended lines, delete the markers, then save the file.
+3. Repeat for each conflicted file, then run:
+   ```bash
+   git add <file1> <file2>
+   git status
+   ```
+4. When all conflicts are resolved:
+   ```bash
+   git commit -m "Resolve merge conflicts"
+   ```
+
+## 7) Supabase setup needed for new Money/Closing Costs features
+Add the environment variables locally (see step 1) and in Vercel.
+
+Run this once in Supabase SQL editor to add the optional tag:
+```sql
+ALTER TABLE transactions ADD COLUMN cost_tag text;
+```
+
+Create the storage buckets referenced by the app (Supabase → Storage):
+- `receipts`
+- `rehab-photos`

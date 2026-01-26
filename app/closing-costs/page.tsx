@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -15,8 +15,8 @@ type Tx = {
   properties?: { address: string } | null;
 };
 
-function money2(n: any) {
-  const x = Number(n);
+function money2(n: number | string | null | undefined) {
+  const x = Number(n ?? 0);
   if (!Number.isFinite(x)) return "-";
   return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -27,7 +27,7 @@ export default function ClosingCostsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [costTagAvailable, setCostTagAvailable] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
 
@@ -43,25 +43,16 @@ export default function ClosingCostsPage() {
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
       .limit(2000)) as PostgrestSingleResponse<Tx[]>;
-    let txRes = await supabase
-      .from("transactions")
-      .select(`${baseSelect},cost_tag`)
-      .order("date", { ascending: false })
-      .limit(2000);
 
     if (txRes.error) {
       const msg = txRes.error.message.toLowerCase();
       if (msg.includes("cost_tag")) {
         setCostTagAvailable(false);
-<<<<<<< ours
         txRes = (await supabase
           .from("transactions")
           .select(baseSelect)
           .order("date", { ascending: false })
           .limit(2000)) as PostgrestSingleResponse<Tx[]>;
-=======
-        txRes = await supabase.from("transactions").select(baseSelect).order("date", { ascending: false }).limit(2000);
->>>>>>> theirs
       }
     }
 
@@ -72,13 +63,16 @@ export default function ClosingCostsPage() {
       return;
     }
 
-    setRows((txRes.data as any) ?? []);
+    setRows(txRes.data ?? []);
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    const id = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [load]);
 
   const closingRows = useMemo(() => {
     if (costTagAvailable) return rows.filter((r) => r.cost_tag === "closing");

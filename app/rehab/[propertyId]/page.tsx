@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -57,7 +58,7 @@ export default function RehabDetailPage() {
   const [newNote, setNewNote] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
 
@@ -80,24 +81,30 @@ export default function RehabDetailPage() {
       return;
     }
 
-    const p = pr.data as any as Project;
+    if (!pr.data) {
+      setErr("No rehab project found for this property.");
+      setLoading(false);
+      return;
+    }
+
+    const p = pr.data as Project;
     setProject(p);
 
     const tRes = await supabase.from("rehab_tasks").select("id,title,status,due_date,cost_est").eq("project_id", p.id).order("created_at", { ascending: false });
-    setTasks(((tRes.data as any) ?? []) as Task[]);
+    setTasks((tRes.data ?? []) as Task[]);
 
     const nRes = await supabase.from("rehab_notes").select("id,note,created_at").eq("project_id", p.id).order("created_at", { ascending: false });
-    setNotes(((nRes.data as any) ?? []) as Note[]);
+    setNotes((nRes.data ?? []) as Note[]);
 
     const phRes = await supabase.from("rehab_photos").select("id,storage_path,caption,created_at").eq("project_id", p.id).order("created_at", { ascending: false });
-    setPhotos(((phRes.data as any) ?? []) as Photo[]);
+    setPhotos((phRes.data ?? []) as Photo[]);
 
     setLoading(false);
-  }
+  }, [propertyId]);
 
   useEffect(() => {
     load();
-  }, [propertyId]);
+  }, [load]);
 
   const totals = useMemo(() => {
     let todo = 0, doing = 0, waiting = 0, done = 0;
@@ -194,8 +201,45 @@ export default function RehabDetailPage() {
       if (error) throw new Error(error.message);
 
       load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function uploadInvoice(file: File) {
+    if (!project) return;
+
+    const { data: s } = await supabase.auth.getSession();
+    const uid = s.session?.user?.id;
+    if (!uid) return;
+
+    setUploading(true);
+    try {
+      const path = `${project.property_id}/invoice_${Date.now()}_${file.name}`.replace(/\s+/g, "_");
+
+      const up = await supabase.storage.from("rehab-photos").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (up.error) throw new Error(up.error.message);
+
+      const { error } = await supabase.from("rehab_photos").insert({
+        project_id: project.id,
+        author_user_id: uid,
+        storage_path: path,
+        caption: `Invoice: ${file.name}`,
+      });
+
+      if (error) throw new Error(error.message);
+
+      load();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -258,9 +302,9 @@ export default function RehabDetailPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <a className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" href="/rehab">
+          <Link className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" href="/rehab">
             Back
-          </a>
+          </Link>
           <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
             Refresh
           </button>

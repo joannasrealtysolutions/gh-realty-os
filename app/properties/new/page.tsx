@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -96,12 +97,9 @@ export default function NewPropertyPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <a
-            className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white"
-            href="/properties"
-          >
+          <Link className="rounded-xl border border-slate-700 px-4 py-2 text-slate-200 hover:text-white" href="/properties">
             Back
-          </a>
+          </Link>
           <button
             form="newPropertyForm"
             className="rounded-xl bg-white text-black px-4 py-2"

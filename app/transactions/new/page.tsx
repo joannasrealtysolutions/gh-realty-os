@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -55,10 +56,10 @@ export default function NewTransactionPage() {
 
       const { data, error } = await supabase.from("properties").select("id,address").order("address");
       if (error) setErr(error.message);
-      setProps((data as any) ?? []);
+      setProps((data as PropOption[]) ?? []);
 
       const rpRes = await supabase.from("rehab_projects").select("id,title,status").order("created_at", { ascending: false });
-      if (!rpRes.error) setRehabProjects((rpRes.data as any) ?? []);
+      if (!rpRes.error) setRehabProjects((rpRes.data as RehabProject[]) ?? []);
 
       const ctRes = await supabase.from("transactions").select("id,cost_tag").limit(1);
       if (ctRes.error && ctRes.error.message.toLowerCase().includes("cost_tag")) {
@@ -80,7 +81,19 @@ export default function NewTransactionPage() {
       return;
     }
 
-    const payload: any = {
+    const payload: {
+      date: string;
+      type: "income" | "expense";
+      category: string;
+      amount: number;
+      vendor: string | null;
+      description: string | null;
+      receipt_link: string | null;
+      property_id: string | null;
+      is_rehab: boolean;
+      rehab_project_id: string | null;
+      cost_tag?: string | null;
+    } = {
       date,
       type,
       category,
@@ -112,9 +125,9 @@ export default function NewTransactionPage() {
           <h1 className="text-2xl font-semibold">Add Transaction</h1>
           <p className="text-sm text-slate-300 mt-1">Income or expense entry</p>
         </div>
-        <a className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
+        <Link className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white" href="/money">
           Back
-        </a>
+        </Link>
       </div>
 
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}
@@ -154,7 +167,7 @@ export default function NewTransactionPage() {
                 <select
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
                   value={type}
-                  onChange={(e) => setType(e.target.value as any)}
+                  onChange={(e) => setType(e.target.value as "income" | "expense")}
                 >
                   <option value="income" className="bg-slate-950">
                     income

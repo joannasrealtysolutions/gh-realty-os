@@ -131,7 +131,13 @@ export default function PropertyEditPage() {
         return;
       }
 
-      const p = pRes.data as any as PropertyRow;
+      if (!pRes.data) {
+        setErr("Property not found.");
+        setLoading(false);
+        return;
+      }
+
+      const p = pRes.data as PropertyRow;
       setAddress(p.address ?? "");
       setStatus(p.status ?? "Lead");
       setSqft(p.square_footage != null ? String(p.square_footage) : "");
@@ -151,7 +157,13 @@ export default function PropertyEditPage() {
         return;
       }
 
-      const uw = uwRes.data as any as UWRow;
+      if (!uwRes.data) {
+        setErr("Underwriting record not found.");
+        setLoading(false);
+        return;
+      }
+
+      const uw = uwRes.data as UWRow;
 
       setListPrice(uw.list_price != null ? String(uw.list_price) : "");
       setMarketPsf(uw.market_price_per_sf != null ? String(uw.market_price_per_sf) : "");

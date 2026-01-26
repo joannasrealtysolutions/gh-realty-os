@@ -38,13 +38,14 @@ export default function ContractorHomePage() {
       setErr(error.message);
       setRows([]);
     } else {
-      setRows((data as any) ?? []);
+      setRows((data as Project[]) ?? []);
     }
 
     setLoading(false);
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
