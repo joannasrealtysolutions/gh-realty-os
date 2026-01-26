@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,8 +46,8 @@ async function ensureProjectAccess(projectId: string, userId: string) {
 }
 
 export async function PATCH(
-  req: Request,
-  { params }: { params: { projectId?: string } }
+  req: NextRequest,
+  { params }: { params: { projectId: string } }
 ) {
   if (!admin) {
     return NextResponse.json({ error: "Server missing Supabase configuration." }, { status: 500 });
@@ -102,8 +102,8 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId?: string } }
+  req: NextRequest,
+  { params }: { params: { projectId: string } }
 ) {
   if (!admin) {
     return NextResponse.json({ error: "Server missing Supabase configuration." }, { status: 500 });
