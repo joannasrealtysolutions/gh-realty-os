@@ -72,7 +72,6 @@ export default function NewRehabProjectPage() {
       window.location.href = "/login";
       return;
     }
-
     const payload: {
       property_id: string;
       title: string;

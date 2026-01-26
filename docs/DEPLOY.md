@@ -71,7 +71,6 @@ git push
 Open Vercel → Deployments → pick a previous deploy → **Redeploy**
 
 ## 5) VS Code tasks (one click)
-
 Open the Command Palette → **Tasks: Run Task** and choose:
 - Deploy (safe)
 - Preview (safe)
@@ -94,7 +93,6 @@ Open the Command Palette → **Tasks: Run Task** and choose:
    ```
 
 ## 7) Supabase setup needed for new Money/Closing Costs features
-
 Add the environment variables locally (see step 1) and in Vercel.
 
 Run this once in the Supabase SQL editor to add the optional tag:

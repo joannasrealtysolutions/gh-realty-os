@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PostgrestSingleResponse } from "@supabase/supabase-js";
+
 import { supabase } from "../../lib/supabaseClient";
 
 type Tx = {
@@ -63,7 +64,7 @@ export default function ClosingCostsPage() {
       return;
     }
 
-    setRows((txRes.data as Tx[]) ?? []);
+    setRows(txRes.data ?? []);
     setLoading(false);
   }, []);
 
@@ -99,10 +100,10 @@ export default function ClosingCostsPage() {
       </div>
 
       {!costTagAvailable && (
-        <p className="mt-4 text-xs text-slate-500">
-          Cost tags require a <span className="text-slate-300">cost_tag</span> column in Supabase. Filtering by category contains
-          “closing” instead.
-        </p>
+      <p className="mt-4 text-xs text-slate-500">
+        Cost tags require a <span className="text-slate-300">cost_tag</span> column in Supabase. Filtering by category looks for the word
+        closing instead.
+      </p>
       )}
 
       {loading && <p className="mt-6 text-slate-300">Loading...</p>}

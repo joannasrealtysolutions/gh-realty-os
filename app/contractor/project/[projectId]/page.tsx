@@ -314,7 +314,7 @@ export default function ContractorProjectPage() {
           <h1 className="text-2xl font-semibold">{project.title}</h1>
           <p className="text-sm text-slate-300 mt-1">
             Status: <span className="text-slate-100">{project.status}</span>
-            <span className="text-slate-500"> • </span>
+            <span className="text-slate-500"> - </span>
             Project ID: <span className="text-slate-100">{project.id}</span>
           </p>
         </div>
@@ -556,7 +556,7 @@ function TaskRow({ task, onChange }: { task: Task; onChange: (status: string) =>
         </select>
       </div>
       <div className="text-xs text-slate-400 mt-2">
-        Due: {task.due_date ?? "-"} • Cost est: {task.cost_est != null ? `$${money(Number(task.cost_est))}` : "-"}
+        Due: {task.due_date ?? "-"} - Cost est: {task.cost_est != null ? `$${money(Number(task.cost_est))}` : "-"}
       </div>
     </div>
   );
