@@ -41,6 +41,8 @@ function money(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const STATUS_OPTIONS = ["Todo", "Doing", "Waiting", "Done"];
+
 export default function ContractorProjectPage() {
   const params = useParams();
   const projectId = String(params.projectId || "");
@@ -306,7 +308,7 @@ export default function ContractorProjectPage() {
   if (!project) return <p className="py-6 text-slate-300">Project not found.</p>;
 
   return (
-    <main className="py-6">
+    <main className="py-6 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">{project.title}</h1>
@@ -318,167 +320,159 @@ export default function ContractorProjectPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Link className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" href="/contractor">
+          <Link
+            className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white"
+            href="/contractor"
+          >
             Back
           </Link>
-          <button className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white" onClick={load}>
+          <button
+            className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:text-white"
+            onClick={load}
+          >
             Refresh
           </button>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card label="Todo" value={String(totals.todo)} />
-        <Card label="Doing" value={String(totals.doing)} />
-        <Card label="Waiting" value={String(totals.waiting)} />
-        <Card label="Done" value={String(totals.done)} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card label="Progress" value={`${progressPct}%`} />
-        <Card label="Est. Task Cost" value={`$${money(totals.cost)}`} />
-        <Card label="Invoices" value={String(invoices.length)} />
-      </div>
-
-      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
-        <h2 className="font-semibold">Timeline & Status</h2>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm text-slate-300">Status</label>
-            <input
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-              value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value)}
-            />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Task summary</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <Stat label="Todo" value={totals.todo} />
+            <Stat label="Doing" value={totals.doing} />
+            <Stat label="Waiting" value={totals.waiting} />
+            <Stat label="Done" value={totals.done} />
           </div>
-          <div>
-            <label className="text-sm text-slate-300">Start date</label>
-            <input
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-              type="date"
-              value={editStartDate}
-              onChange={(e) => setEditStartDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm text-slate-300">Target end date</label>
-            <input
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-              type="date"
-              value={editTargetEndDate}
-              onChange={(e) => setEditTargetEndDate(e.target.value)}
-            />
+          <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <Stat label="Progress" value={`${progressPct}%`} />
+            <Stat label="Est. cost" value={`$${money(totals.cost)}`} />
+            <Stat label="Invoices" value={invoices.length} />
           </div>
         </div>
-        <button className="mt-4 rounded-xl bg-white text-black px-4 py-2" onClick={saveMeta} disabled={savingMeta}>
-          {savingMeta ? "Saving..." : "Save Timeline"}
-        </button>
-      </section>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
-          <h2 className="font-semibold">Tasks</h2>
-
-          <div className="mt-4 flex gap-2">
-            <input
-              className="flex-1 rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-              placeholder="Add a task..."
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-            />
-            <button className="rounded-xl bg-white text-black px-4 py-2" onClick={addTask}>
-              Add
-            </button>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {tasks.map((t) => (
-              <div key={t.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-slate-100">{t.title}</div>
-                  <select
-                    className="rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-                    value={t.status}
-                    onChange={(e) => updateTaskStatus(t.id, e.target.value)}
-                  >
-                    {["Todo", "Doing", "Waiting", "Done"].map((s) => (
-                      <option key={s} value={s} className="bg-slate-950">
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="text-xs text-slate-400 mt-2">
-                  Due: {t.due_date ?? "-"} • Cost est: {t.cost_est != null ? `$${money(Number(t.cost_est))}` : "-"}
-                </div>
-              </div>
-            ))}
-            {tasks.length === 0 && <p className="text-sm text-slate-400 mt-2">No tasks yet.</p>}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
-          <h2 className="font-semibold">Notes</h2>
-
-          <textarea
-            className="mt-4 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
-            rows={4}
-            placeholder="Add a note..."
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-          />
-
-          <button className="mt-3 rounded-xl bg-white text-black px-4 py-2" onClick={addNote}>
-            Add Note
-          </button>
-
-          <div className="mt-4 space-y-2">
-            {notes.map((n) => (
-              <div key={n.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-                <div className="text-slate-100 whitespace-pre-wrap">{n.note}</div>
-                <div className="text-xs text-slate-500 mt-2">{new Date(n.created_at).toLocaleString()}</div>
-              </div>
-            ))}
-            {notes.length === 0 && <p className="text-sm text-slate-400 mt-2">No notes yet.</p>}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
-          <h2 className="font-semibold">Invoices</h2>
-          <p className="text-xs text-slate-500 mt-1">Upload invoices as PDF or image.</p>
-          <div className="mt-3 flex items-center gap-3">
-            <label className="rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white cursor-pointer">
-              Upload invoice
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Timeline</h2>
+          <div className="mt-4 space-y-3">
+            <WidgetField label="Status">
               <input
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) uploadInvoice(f);
-                  e.currentTarget.value = "";
-                }}
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
               />
-            </label>
-            {uploading && <span className="text-xs text-slate-500">Uploading...</span>}
+            </WidgetField>
+            <WidgetField label="Start date">
+              <input
+                type="date"
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+              />
+            </WidgetField>
+            <WidgetField label="Target end">
+              <input
+                type="date"
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                value={editTargetEndDate}
+                onChange={(e) => setEditTargetEndDate(e.target.value)}
+              />
+            </WidgetField>
           </div>
-
-          <div className="mt-4 space-y-2">
-            {invoices.map((ph) => (
-              <button
-                key={ph.id}
-                className="block text-left text-slate-200 hover:text-white underline"
-                onClick={() => openPhoto(ph.storage_path)}
-              >
-                {ph.caption ?? ph.storage_path}
-              </button>
-            ))}
-            {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices uploaded yet.</p>}
-          </div>
-        </section>
+          <button
+            className="mt-5 flex items-center justify-center rounded-xl bg-white text-black px-4 py-2"
+            onClick={saveMeta}
+            disabled={savingMeta}
+          >
+            {savingMeta ? "Saving timeline…" : "Save timeline"}
+          </button>
+        </div>
       </div>
 
-      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Widget title="Task board" description="Create, track, and prioritize contractor tasks.">
+          <div className="mt-3 space-y-3">
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+                placeholder="Add a task..."
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+              />
+              <button className="rounded-xl bg-white text-black px-4 py-2" onClick={addTask}>
+                Add
+              </button>
+            </div>
+            <div className="space-y-3">
+              {tasks.map((t) => (
+                <TaskRow key={t.id} task={t} onChange={(status) => updateTaskStatus(t.id, status)} />
+              ))}
+              {tasks.length === 0 && <p className="text-sm text-slate-400">No tasks assigned yet.</p>}
+            </div>
+          </div>
+        </Widget>
+
+        <div className="space-y-6 lg:space-y-4">
+          <Widget title="Notes" description="Capture site updates for owners or teammates.">
+            <div className="space-y-2">
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-transparent p-3 text-slate-100"
+                rows={4}
+                placeholder="Add a note..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+              />
+              <button className="rounded-xl bg-white text-black px-4 py-2" onClick={addNote}>
+                Save note
+              </button>
+              <div className="space-y-2">
+                {notes.map((n) => (
+                  <div key={n.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                    <div className="text-slate-100 whitespace-pre-wrap">{n.note}</div>
+                    <div className="text-xs text-slate-500 mt-1">{new Date(n.created_at).toLocaleString()}</div>
+                  </div>
+                ))}
+                {notes.length === 0 && <p className="text-sm text-slate-400">No notes yet.</p>}
+              </div>
+            </div>
+          </Widget>
+
+          <Widget title="Invoices" description="Upload receipts and invoices for approvals.">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="w-auto rounded-xl border border-slate-700 px-3 py-2 text-slate-200 hover:text-white cursor-pointer">
+                  Upload invoice
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadInvoice(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {uploading && <span className="text-xs text-slate-500">Uploading...</span>}
+              </div>
+              <div className="space-y-2 text-sm">
+                {invoices.map((ph) => (
+                  <button
+                    key={ph.id}
+                    className="w-full text-left text-slate-200 hover:text-white underline"
+                    onClick={() => openPhoto(ph.storage_path)}
+                  >
+                    {ph.caption ?? ph.storage_path}
+                    <span className="block text-xs text-slate-500">{new Date(ph.created_at).toLocaleString()}</span>
+                  </button>
+                ))}
+                {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices yet.</p>}
+              </div>
+            </div>
+          </Widget>
+        </div>
+      </div>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
         <h2 className="font-semibold">Photos</h2>
         <p className="text-sm text-slate-400 mt-1">Upload progress photos.</p>
 
@@ -518,6 +512,60 @@ function Card({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
       <div className="text-sm text-slate-300">{label}</div>
       <div className="text-2xl font-semibold mt-1">{value}</div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3 text-center">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xl font-semibold text-slate-200">{value}</div>
+    </div>
+  );
+}
+
+function Widget({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
+        <p className="text-xs text-slate-400 mt-1">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function WidgetField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs uppercase tracking-wide text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function TaskRow({ task, onChange }: { task: Task; onChange: (status: string) => void }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-slate-100">{task.title}</div>
+        <select
+          className="ml-4 rounded-xl border border-slate-700 bg-transparent p-2 text-slate-100"
+          value={task.status}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status} className="bg-slate-950">
+              {status}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="text-xs text-slate-400 mt-2">
+        Due: {task.due_date ?? "-"} • Cost est: {task.cost_est != null ? `$${money(Number(task.cost_est))}` : "-"}
+      </div>
     </div>
   );
 }
