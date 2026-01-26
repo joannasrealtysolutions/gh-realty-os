@@ -41,7 +41,7 @@ function money(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const STATUS_OPTIONS = ["Todo", "Doing", "Waiting", "Done"];
+const STATUS_OPTIONS = ["To-do", "Doing", "Waiting", "Done"];
 
 export default function ContractorProjectPage() {
   const params = useParams();
