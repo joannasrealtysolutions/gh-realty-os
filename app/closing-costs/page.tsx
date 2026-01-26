@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-<<<<<<< ours
 import type { PostgrestSingleResponse } from "@supabase/supabase-js";
-=======
->>>>>>> theirs
 import { supabase } from "../../lib/supabaseClient";
 
 type Tx = {
@@ -41,19 +38,16 @@ export default function ClosingCostsPage() {
     }
 
     const baseSelect = "id,date,category,amount,vendor,description, properties:property_id(address)";
-<<<<<<< ours
     let txRes = (await supabase
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
       .limit(2000)) as PostgrestSingleResponse<Tx[]>;
-=======
     let txRes = await supabase
       .from("transactions")
       .select(`${baseSelect},cost_tag`)
       .order("date", { ascending: false })
       .limit(2000);
->>>>>>> theirs
 
     if (txRes.error) {
       const msg = txRes.error.message.toLowerCase();
