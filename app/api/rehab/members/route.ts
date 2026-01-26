@@ -75,24 +75,24 @@ async function fetchMembers(projectId: string) {
 
   if (error) throw new Error(error.message);
 
-  const members = await Promise.all(
-    (data ?? []).map(async (member) => {
-      try {
-        const { data: userData } = await admin!.auth.getUser(member.user_id);
-        return {
-          user_id: member.user_id,
-          email: userData?.email ?? null,
-          role: member.role ?? null,
-        };
-      } catch {
-        return {
-          user_id: member.user_id,
-          email: null,
-          role: member.role ?? null,
-        };
-      }
-    })
-  );
+    const members = await Promise.all(
+      (data ?? []).map(async (member) => {
+        try {
+          const { data: userData } = await admin!.auth.getUser(member.user_id);
+          return {
+            user_id: member.user_id,
+            email: userData?.user?.email ?? null,
+            role: member.role ?? null,
+          };
+        } catch {
+          return {
+            user_id: member.user_id,
+            email: null,
+            role: member.role ?? null,
+          };
+        }
+      })
+    );
 
   return members;
 }
