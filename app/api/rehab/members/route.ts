@@ -144,7 +144,7 @@ export async function POST(req: Request) {
     role?: string;
   };
 
-  const projectId = body.project_id ?? body.projectId;
+  const projectId = body.project_id;
   if (!projectId) {
     return NextResponse.json({ error: "project_id is required." }, { status: 400 });
   }
