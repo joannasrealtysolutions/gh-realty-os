@@ -103,3 +103,5 @@ ALTER TABLE transactions ADD COLUMN cost_tag text;
 Create the storage buckets referenced by the app (Supabase → Storage):
 - `receipts`
 - `rehab-photos`
+
+Supply the service-role key as `SUPABASE_SERVICE_ROLE_KEY` (server-only) so the `/api/rehab/projects` route can insert rehab projects while row-level security is enabled.

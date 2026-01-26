@@ -68,19 +68,12 @@ export default function NewRehabProjectPage() {
     }
 
     const { data: session } = await supabase.auth.getSession();
-    if (!session.session) {
+    if (!session.session?.access_token) {
       window.location.href = "/login";
       return;
     }
 
-    const payload: {
-      property_id: string;
-      title: string;
-      status: string;
-      budget_target: number | null;
-      start_date: string | null;
-      target_end_date: string | null;
-    } = {
+    const payload = {
       property_id: propertyId,
       title: title.trim(),
       status,
@@ -89,32 +82,18 @@ export default function NewRehabProjectPage() {
       target_end_date: targetEndDate || null,
     };
 
-    const { data: insertedProject, error: projectError } = await supabase
-      .from("rehab_projects")
-      .insert(payload)
-      .select("id")
-      .single();
-
-    if (projectError || !insertedProject?.id) {
-      setErr(projectError?.message ?? "Failed to create project.");
-      setSaving(false);
-      return;
-    }
-
-    const userId = session.session?.user.id;
-    if (!userId) {
-      setErr("Unable to verify your identity.");
-      setSaving(false);
-      return;
-    }
-
-    const { error: memberError } = await supabase.from("rehab_members").insert({
-      rehab_project_id: insertedProject.id,
-      user_id: userId,
+    const response = await fetch("/api/rehab/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.session.access_token}`,
+      },
+      body: JSON.stringify(payload),
     });
 
-    if (memberError) {
-      setErr(memberError.message);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setErr(result?.error ?? "Failed to create project.");
       setSaving(false);
       return;
     }
